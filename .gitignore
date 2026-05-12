@@ -1,0 +1,10 @@
+node_modules/
+dist/
+.taro-cache/
+*.log
+.DS_Store
+.env
+.env.local
+.claude/
+.swc/
+project.private.config.json

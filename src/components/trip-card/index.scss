@@ -1,0 +1,177 @@
+/* Trip Card — Douyin spec: 3 sizes max, 2px step */
+
+.tcard {
+  margin-bottom: 12px;
+  padding: 16px;
+  background: #fff;
+  border-radius: 20px;
+  box-shadow: var(--shadow-card);
+
+  &:active { transform: scale(0.985); }
+}
+
+/* Destination — 18px: the largest on this card */
+.tcard__dest {
+  font-size: 18px;
+  font-weight: 700;
+  color: #1a1a1c;
+  display: block;
+  margin-bottom: 4px;
+  line-height: 1.25;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Route subtitle — 12px */
+.tcard__route {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  margin-bottom: 12px;
+}
+
+.tcard__from,
+.tcard__to {
+  font-size: 12px;
+  color: #8e8e93;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.tcard__arrow {
+  font-size: 10px;
+  color: #c7c7cc;
+  flex-shrink: 0;
+}
+
+/* Info block — deadline + ticket */
+.tcard__info {
+  display: flex;
+  gap: 12px;
+  margin-bottom: 12px;
+  padding: 10px 12px;
+  background: #f8f7f4;
+  border-radius: 12px;
+}
+
+.tcard__deadline { flex: 1; }
+.tcard__deadline-label {
+  font-size: 10px;
+  color: #8e8e93;
+  display: block;
+  margin-bottom: 2px;
+}
+.tcard__deadline-time {
+  font-size: 16px;
+  font-weight: 700;
+  color: #ff5e3a;
+}
+
+.tcard__ticket { flex: 1; }
+.tcard__ticket-label {
+  font-size: 10px;
+  color: #8e8e93;
+  display: block;
+  margin-bottom: 2px;
+}
+.tcard__ticket-time {
+  font-size: 14px;
+  font-weight: 500;
+  color: #636366;
+}
+
+/* Footer */
+.tcard__footer {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.tcard__creator {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.tcard__avatar {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+}
+
+.tcard__name {
+  font-size: 12px;
+  color: #636366;
+  max-width: 80px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.tcard__gender {
+  padding: 2px 6px;
+  border-radius: 4px;
+  font-size: 10px;
+  color: #3b4cca;
+  background: rgba(59, 76, 202, 0.08);
+
+  &--f {
+    color: #ff5e7a;
+    background: rgba(255, 94, 122, 0.08);
+  }
+}
+
+.tcard__right {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.tcard__faces {
+  display: flex;
+  align-items: center;
+}
+
+.tcard__face {
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  border: 2px solid #fff;
+  margin-left: -8px;
+  &:first-child { margin-left: 0; }
+}
+
+.tcard__face-more {
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  background: #f0f0f0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 10px;
+  color: #8e8e93;
+  margin-left: -8px;
+  border: 2px solid #fff;
+}
+
+.tcard__spots {
+  padding: 3px 10px;
+  border-radius: 8px;
+  font-size: 12px;
+  font-weight: 600;
+  color: #3b4cca;
+  background: rgba(59, 76, 202, 0.08);
+
+  &--urgent {
+    color: #ff5e3a;
+    background: rgba(255, 94, 58, 0.1);
+  }
+
+  &--full {
+    color: #8e8e93;
+    background: #f5f5f7;
+  }
+}

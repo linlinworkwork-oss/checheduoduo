@@ -8,3 +8,4 @@ dist/
 .claude/
 .swc/
 project.private.config.json
+*.zip

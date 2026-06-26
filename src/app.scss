@@ -54,6 +54,8 @@ page {
   background-color: var(--color-surface-secondary);
   -webkit-font-smoothing: antialiased;
   line-height: 1.5;
+  width: 100%;
+  overflow-x: hidden;
 }
 
 view, text, image, input, button, textarea, navigator {

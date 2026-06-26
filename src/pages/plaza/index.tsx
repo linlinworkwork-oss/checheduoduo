@@ -1,6 +1,6 @@
 import { useState, useMemo } from 'react';
 import { View, Text, Input, ScrollView } from '@tarojs/components';
-import { useDidShow, useReachBottom } from '@tarojs/taro';
+import Taro, { useDidShow, useReachBottom, usePullDownRefresh } from '@tarojs/taro';
 import { useTripStore } from '../../stores/tripStore';
 import { LOCATION_OPTIONS } from '../../lib/constants';
 import TripCard from '../../components/trip-card';
@@ -10,7 +10,7 @@ import './index.scss';
 type FilterTab = 'departure' | 'arrival' | 'status' | null;
 
 export default function Plaza() {
-  const { trips, loading, hasMore, listTrips, loadMore, refreshTrips } = useTripStore();
+  const { trips, loading, hasMore, error, listTrips, loadMore, refreshTrips } = useTripStore();
   const [selectedDate, setSelectedDate] = useState('');
   const [keyword, setKeyword] = useState('');
   const [activeTab, setActiveTab] = useState<'all' | 'today'>('all');
@@ -44,6 +44,10 @@ export default function Plaza() {
 
   useReachBottom(() => {
     loadMore(filter);
+  });
+
+  usePullDownRefresh(() => {
+    refreshTrips(filter).finally(() => Taro.stopPullDownRefresh());
   });
 
   const dateChips = useMemo(() => {
@@ -229,6 +233,12 @@ export default function Plaza() {
         <View className="plaza-state">
           <Text className="plaza-state__icon">⏳</Text>
           <Text className="plaza-state__text">加载中...</Text>
+        </View>
+      ) : error && trips.length === 0 ? (
+        <View className="plaza-state">
+          <Text className="plaza-state__icon">⚠️</Text>
+          <Text className="plaza-state__text">加载失败</Text>
+          <Text className="plaza-state__hint">{error}</Text>
         </View>
       ) : trips.length === 0 ? (
         <View className="plaza-state">

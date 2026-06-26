@@ -7,11 +7,12 @@ export default defineAppConfig({
     'pages/profile/index',
   ],
   window: {
-    backgroundTextStyle: 'light',
+    backgroundTextStyle: 'dark',
     navigationBarBackgroundColor: '#ffffff',
     navigationBarTitleText: '校园拼车',
     navigationBarTextStyle: 'black',
     backgroundColor: '#f5f5f7',
+    enablePullDownRefresh: true,
   },
   permission: {
     'scope.userLocation': {

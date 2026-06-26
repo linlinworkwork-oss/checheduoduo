@@ -7,6 +7,26 @@ import Avatar from '../../components/ui/avatar';
 import { LUGGAGE_SIZE_MAP, LUGGAGE_OPTIONS } from '../../lib/constants';
 import './index.scss';
 
+const LUGGAGE_LABELS = LUGGAGE_OPTIONS.map((l) => l.label);
+const LUGGAGE_VALUES = LUGGAGE_OPTIONS.map((l) => l.value);
+
+/** Guard trip._id, show confirmation modal, execute action, toast result. */
+async function guardedAction(
+  tripId: string | undefined,
+  title: string,
+  content: string,
+  fn: () => Promise<void>,
+  ok: string,
+  err: string,
+  after?: () => void,
+) {
+  if (!tripId) { Taro.showToast({ title: '行程数据异常', icon: 'error' }); return; }
+  const r = await Taro.showModal({ title, content });
+  if (!r.confirm) return;
+  try { await fn(); Taro.showToast({ title: ok, icon: 'success' }); after?.(); }
+  catch (e: unknown) { Taro.showToast({ title: (e instanceof Error ? e.message : '') || err, icon: 'error' }); }
+}
+
 export default function Detail() {
   const router = useRouter();
   const { id } = router.params;
@@ -41,22 +61,15 @@ export default function Detail() {
   const isPastDeparture = Date.now() >= departureEndTime;
 
   const handleJoin = async () => {
-    if (!trip?._id) { Taro.showToast({ title: '行程数据异常', icon: 'error' }); return; }
     if (!user?.nickName || !user?.phone) {
       Taro.showToast({ title: '请先在"我的"完善昵称和手机号', icon: 'none' });
       return;
     }
-    const luggageLabels = LUGGAGE_OPTIONS.map((l) => l.label);
-    const luggageValues = LUGGAGE_OPTIONS.map((l) => l.value);
     try {
-      const res = await Taro.showActionSheet({
-        itemList: luggageLabels,
-        itemColor: '#1a1a1c',
-      });
-      const luggageSize = luggageValues[res.tapIndex];
+      const res = await Taro.showActionSheet({ itemList: LUGGAGE_LABELS, itemColor: '#1a1a1c' });
+      const luggageSize = LUGGAGE_VALUES[res.tapIndex];
 
-      const departureEnd = new Date(`${trip.departureDate}T${trip.departureTimeEnd}:00`).getTime();
-      const minutesLeft = Math.round((departureEnd - Date.now()) / 60000);
+      const minutesLeft = Math.round((departureEndTime - Date.now()) / 60000);
       if (minutesLeft <= 20 && minutesLeft > 0) {
         const confirmed = await Taro.showModal({
           title: '临近出发时间',
@@ -67,55 +80,15 @@ export default function Detail() {
       }
 
       setJoining(true);
-      try {
-        await joinTrip(trip._id, luggageSize);
-        Taro.showToast({ title: '加入成功', icon: 'success' });
-      } catch (err: any) {
-        Taro.showToast({ title: err.message || '加入失败', icon: 'error' });
-      } finally {
-        setJoining(false);
-      }
-    } catch {
-      // user cancelled action sheet
-    }
+      try { await joinTrip(trip._id, luggageSize); Taro.showToast({ title: '加入成功', icon: 'success' }); }
+      catch (e: unknown) { Taro.showToast({ title: (e instanceof Error ? e.message : '') || '加入失败', icon: 'error' }); }
+      finally { setJoining(false); }
+    } catch { /* user cancelled action sheet */ }
   };
 
-  const handleLeave = async () => {
-    if (!trip?._id) { Taro.showToast({ title: '行程数据异常', icon: 'error' }); return; }
-    const r = await Taro.showModal({ title: '退出行程', content: '确定退出吗？' });
-    if (!r.confirm) return;
-    try {
-      await leaveTrip(trip._id);
-      Taro.showToast({ title: '已退出', icon: 'success' });
-    } catch (err: any) {
-      Taro.showToast({ title: err.message || '失败', icon: 'error' });
-    }
-  };
-
-  const handleComplete = async () => {
-    if (!trip?._id) { Taro.showToast({ title: '行程数据异常', icon: 'error' }); return; }
-    const r = await Taro.showModal({ title: '标记完成', content: '确定将该行程标记为已完成吗？仅对你生效。' });
-    if (!r.confirm) return;
-    try {
-      await completeTrip(trip._id);
-      Taro.showToast({ title: '已标记完成', icon: 'success' });
-    } catch (err: any) {
-      Taro.showToast({ title: err.message || '操作失败', icon: 'error' });
-    }
-  };
-
-  const handleCancel = async () => {
-    if (!trip?._id) { Taro.showToast({ title: '行程数据异常', icon: 'error' }); return; }
-    const r = await Taro.showModal({ title: '取消行程', content: '确定取消吗？已加入的同学会看到。' });
-    if (!r.confirm) return;
-    try {
-      await cancelTrip(trip._id);
-      Taro.showToast({ title: '已取消', icon: 'success' });
-      Taro.navigateBack();
-    } catch (err: any) {
-      Taro.showToast({ title: err.message || '失败', icon: 'error' });
-    }
-  };
+  const handleLeave = () => guardedAction(trip._id, '退出行程', '确定退出吗？', () => leaveTrip(trip._id), '已退出', '失败');
+  const handleComplete = () => guardedAction(trip._id, '标记完成', '确定将该行程标记为已完成吗？仅对你生效。', () => completeTrip(trip._id), '已标记完成', '操作失败');
+  const handleCancel = () => guardedAction(trip._id, '取消行程', '确定取消吗？已加入的同学会看到。', () => cancelTrip(trip._id), '已取消', '失败', () => { Taro.navigateBack(); });
 
   return (
     <View className="pg-detail">

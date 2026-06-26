@@ -113,6 +113,10 @@ export default function Create() {
     if (!form.departureTimeEnd) e.departureTimeEnd = '必选';
     if (form.departureTimeStart && form.departureTimeEnd && form.departureTimeStart >= form.departureTimeEnd)
       e.departureTimeEnd = '最晚需晚于最早';
+    if (form.departureDate && form.departureTimeEnd) {
+      const endTime = new Date(`${form.departureDate}T${form.departureTimeEnd}:00`).getTime();
+      if (endTime <= Date.now()) e.departureTimeEnd = '最晚出发时间需晚于当前时间';
+    }
     if (!form.departureName.trim()) e.departureName = '必填';
     if (!form.arrivalName.trim()) e.arrivalName = '必填';
     setErrors(e);

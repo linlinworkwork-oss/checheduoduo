@@ -27,6 +27,6 @@ exports.main = async (event) => {
     return { code: 0, message: '行程已取消' };
   } catch (err) {
     console.error('[cancelTrip] Error:', err);
-    return { code: 500, message: err.message || '取消行程失败' };
+    return { code: 500, message: '取消行程失败' };
   }
 };

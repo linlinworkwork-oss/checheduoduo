@@ -29,6 +29,9 @@ export async function callCloudFunction<T = any>(
   }
 }
 
+// 在 `src/app.config.ts` 中通过 defineConstants 注入，或在此处替换为你的云开发环境 ID
+const CLOUD_ENV_ID = process.env.TARO_APP_CLOUD_ENV || 'your-cloud-env-id';
+
 export function initCloud(): void {
-  Taro.cloud.init({ env: 'cloud1-d8gz749otb17f1b3b' });
+  Taro.cloud.init({ env: CLOUD_ENV_ID });
 }

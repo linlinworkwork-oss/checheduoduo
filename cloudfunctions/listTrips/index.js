@@ -9,6 +9,8 @@ function escapeRegex(s) {
 }
 
 exports.main = async (event) => {
+  const { OPENID } = cloud.getWXContext();
+
   const {
     departureDate,
     keyword,
@@ -79,9 +81,13 @@ exports.main = async (event) => {
       .limit(pageSize + 1)
       .get();
 
-    // Filter out trips whose departure window ended more than 20 min ago
     const cutoff = Date.now() - 20 * 60 * 1000;
     const filtered = data.filter((trip) => {
+      // Exclude trips current user has completed
+      if (OPENID && trip.completedBy && trip.completedBy.includes(OPENID)) return false;
+      // Exclude trips the creator has completed (trip is done)
+      if (trip.completedBy && trip.creatorId && trip.completedBy.includes(trip.creatorId)) return false;
+      // Exclude trips whose departure window ended more than 20 min ago
       if (!trip.departureDate || !trip.departureTimeEnd) return true;
       const endTime = new Date(`${trip.departureDate}T${trip.departureTimeEnd}:00`).getTime();
       return !isNaN(endTime) && endTime > cutoff;

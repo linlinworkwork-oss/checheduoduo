@@ -3,7 +3,7 @@
   "cloudfunctionRoot": "cloudfunctions/",
   "projectname": "pinche",
   "description": "校园拼车小程序",
-  "appid": "wx2d8d6ff798d7943e",
+  "appid": "your-wechat-appid",
   "setting": {
     "urlCheck": true,
     "es6": true,

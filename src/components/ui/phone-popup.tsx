@@ -48,8 +48,13 @@ export default function PhonePopup() {
           placeholderStyle="color:#c7c7cc"
           value={phone}
           onInput={(e: any) => setPhone(e.detail.value)}
+          onConfirm={save}
         />
-        <View className={`phone-popup__btn ${saving ? 'phone-popup__btn--loading' : ''}`} onClick={save}>
+        <View
+          className={`phone-popup__btn ${saving ? 'phone-popup__btn--loading' : ''}`}
+          hoverClass="phone-popup__btn--hover"
+          onClick={save}
+        >
           <Text className="phone-popup__btn-text">{saving ? '保存中...' : '确认'}</Text>
         </View>
         <View className="phone-popup__skip" onClick={skip}>

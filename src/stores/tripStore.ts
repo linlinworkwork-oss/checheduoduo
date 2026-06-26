@@ -1,5 +1,7 @@
 import { create } from 'zustand';
+import Taro from '@tarojs/taro';
 import { callCloudFunction } from '../lib/cloud';
+import { useUserStore } from './userStore';
 
 const DEFAULT_PAGE_SIZE = 20;
 
@@ -72,6 +74,7 @@ interface TripState {
   myCompletedTrips: Trip[];
   loading: boolean;
   hasMore: boolean;
+  error: string | null;
 
   listTrips: (filter?: ListTripsFilter) => Promise<void>;
   loadMore: (filter?: ListTripsFilter) => Promise<void>;
@@ -91,9 +94,10 @@ export const useTripStore = create<TripState>((set, get) => ({
   myCompletedTrips: [],
   loading: false,
   hasMore: true,
+  error: null,
 
   listTrips: async (filter = {}) => {
-    set({ loading: true });
+    set({ loading: true, error: null });
     try {
       const res = await callCloudFunction<{ trips: Trip[]; hasMore: boolean }>('listTrips', {
         ...filter,
@@ -101,45 +105,54 @@ export const useTripStore = create<TripState>((set, get) => ({
         pageSize: DEFAULT_PAGE_SIZE,
       });
       set({ trips: res.trips || [], hasMore: res.hasMore ?? false, loading: false });
-    } catch {
-      set({ loading: false });
+    } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : '加载失败';
+      set({ loading: false, error: msg });
+      Taro.showToast({ title: msg, icon: 'none' });
     }
   },
 
   loadMore: async (filter = {}) => {
     const { trips, hasMore, loading } = get();
     if (!hasMore || loading) return;
-    set({ loading: true });
+    set({ loading: true, error: null });
     try {
       const res = await callCloudFunction<{ trips: Trip[]; hasMore: boolean }>('listTrips', {
         ...filter,
-        page: Math.ceil(trips.length / 20) + 1,
-        pageSize: 20,
+        page: Math.ceil(trips.length / DEFAULT_PAGE_SIZE) + 1,
+        pageSize: DEFAULT_PAGE_SIZE,
       });
       set({ trips: [...trips, ...res.trips], hasMore: res.hasMore, loading: false });
-    } catch {
-      set({ loading: false });
+    } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : '加载失败';
+      set({ loading: false, error: msg });
+      Taro.showToast({ title: msg, icon: 'none' });
     }
   },
 
   createTrip: async (input) => {
-    const trip = await callCloudFunction<Trip>('createTrip', input as any);
-    return trip;
+    const res = await callCloudFunction<{ trip: Trip }>('createTrip', input as Record<string, unknown>);
+    return res.trip;
   },
 
   joinTrip: async (tripId, luggageSize) => {
-    const updated = await callCloudFunction<Trip>('joinTrip', { tripId, luggageSize });
+    const res = await callCloudFunction<{ trip: Trip }>('joinTrip', { tripId, luggageSize });
+    const updated = res.trip;
     set((state) => ({
       trips: state.trips.map((t) => (t._id === tripId ? { ...t, ...updated } : t)),
-      myJoinedTrips: [...state.myJoinedTrips, updated],
+      myJoinedTrips: state.myJoinedTrips.some((t) => t._id === tripId)
+        ? state.myJoinedTrips.map((t) => (t._id === tripId ? { ...t, ...updated } : t))
+        : [...state.myJoinedTrips, updated],
     }));
   },
 
   leaveTrip: async (tripId) => {
-    const updated = await callCloudFunction<Trip>('leaveTrip', { tripId });
+    const res = await callCloudFunction<{ trip: Trip }>('leaveTrip', { tripId });
+    const updated = res.trip;
     set((state) => ({
       trips: state.trips.map((t) => (t._id === tripId ? { ...t, ...updated } : t)),
       myJoinedTrips: state.myJoinedTrips.filter((t) => t._id !== tripId),
+      myCompletedTrips: state.myCompletedTrips.filter((t) => t._id !== tripId),
     }));
   },
 
@@ -149,16 +162,21 @@ export const useTripStore = create<TripState>((set, get) => ({
       trips: state.trips.filter((t) => t._id !== tripId),
       myCreatedTrips: state.myCreatedTrips.filter((t) => t._id !== tripId),
       myJoinedTrips: state.myJoinedTrips.filter((t) => t._id !== tripId),
+      myCompletedTrips: state.myCompletedTrips.filter((t) => t._id !== tripId),
     }));
   },
 
   completeTrip: async (tripId) => {
     await callCloudFunction('completeTrip', { tripId });
     set((state) => {
+      // Already in completed — skip to avoid duplicate
+      if (state.myCompletedTrips.some((t) => t._id === tripId)) {
+        return {};
+      }
       const findTrip = (list: Trip[]) => list.find((t) => t._id === tripId);
       const completed = findTrip(state.myCreatedTrips) || findTrip(state.myJoinedTrips) || findTrip(state.trips);
       const completedTrip = completed
-        ? { ...completed, completedBy: [...(completed.completedBy || []), 'local'] }
+        ? { ...completed, completedBy: [...(completed.completedBy || []), useUserStore.getState().user?.openid || ''] }
         : null;
       return {
         trips: state.trips.filter((t) => t._id !== tripId),
@@ -183,13 +201,26 @@ export const useTripStore = create<TripState>((set, get) => ({
         joined: Trip[];
         completed: Trip[];
       }>('getMyTrips');
-      set({
-        myCreatedTrips: res.created || [],
-        myJoinedTrips: res.joined || [],
-        myCompletedTrips: res.completed || [],
+      set((state) => {
+        // Merge server results with locally-known joined trips so a
+        // just-joined trip isn't lost when the server query runs.
+        const incomingIds = new Set([
+          ...(res.created || []).map((t) => t._id),
+          ...(res.joined || []).map((t) => t._id),
+          ...(res.completed || []).map((t) => t._id),
+        ]);
+        const localOnlyJoined = state.myJoinedTrips.filter(
+          (t) => !incomingIds.has(t._id),
+        );
+        return {
+          myCreatedTrips: res.created || [],
+          myJoinedTrips: [...(res.joined || []), ...localOnlyJoined],
+          myCompletedTrips: res.completed || [],
+        };
       });
-    } catch (err) {
-      console.error('[Trip] getMyTrips failed:', err);
+    } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : '获取我的行程失败';
+      Taro.showToast({ title: msg, icon: 'none' });
     }
   },
 }));

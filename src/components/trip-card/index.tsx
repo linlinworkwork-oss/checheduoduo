@@ -1,6 +1,7 @@
-import { View, Text, Image } from '@tarojs/components';
+import { View, Text } from '@tarojs/components';
 import Taro from '@tarojs/taro';
 import { Trip } from '../../stores/tripStore';
+import { useUserStore } from '../../stores/userStore';
 import Avatar from '../ui/avatar';
 import './index.scss';
 
@@ -9,11 +10,14 @@ interface Props {
 }
 
 export default function TripCard({ trip }: Props) {
+  const { user } = useUserStore();
   const {
     _id, departureDate, departureTimeStart, departureTimeEnd,
     departureLocation, arrivalLocation, ticketTime,
     currentPassengers, maxPassengers, status, creator, passengers = [],
   } = trip;
+
+  const isJoined = user?.openid && passengers.some((p) => p.userId === user.openid);
 
   // Guard against malformed trip data
   if (!departureLocation || !arrivalLocation || !creator) return null;
@@ -26,7 +30,12 @@ export default function TripCard({ trip }: Props) {
       onClick={() => Taro.navigateTo({ url: `/pages/detail/index?id=${_id}` })}
     >
       {/* Destination — the most important info, big and bold */}
-      <Text className="tcard__dest">{arrivalLocation.name}</Text>
+      <View className="tcard__dest-row">
+        <Text className="tcard__dest">{arrivalLocation.name}</Text>
+        {isJoined && (
+          <View className="tcard__joined"><Text>已加入</Text></View>
+        )}
+      </View>
 
       {/* Route: from → to */}
       <View className="tcard__route">

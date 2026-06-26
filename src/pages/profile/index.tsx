@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { View, Text, Input, Picker } from '@tarojs/components';
-import Taro, { useDidShow } from '@tarojs/taro';
+import Taro, { useDidShow, usePullDownRefresh } from '@tarojs/taro';
 import { useUserStore } from '../../stores/userStore';
 import { useTripStore, Trip } from '../../stores/tripStore';
 import { GENDER_OPTIONS } from '../../lib/constants';
@@ -15,6 +15,10 @@ export default function Profile() {
 
   useDidShow(() => {
     if (isLogin) getMyTrips();
+  });
+
+  usePullDownRefresh(() => {
+    getMyTrips().finally(() => Taro.stopPullDownRefresh());
   });
 
   useEffect(() => {

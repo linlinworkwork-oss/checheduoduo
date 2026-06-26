@@ -28,7 +28,7 @@ exports.main = async (event) => {
       return { code: 0, message: '已标记完成', completedBy: trip.completedBy };
     }
 
-    const completedBy = _.push([OPENID]);
+    const completedBy = _.push(OPENID);
 
     await trips.doc(tripId).update({
       data: { completedBy },
@@ -37,6 +37,6 @@ exports.main = async (event) => {
     return { code: 0, completedBy: [...(trip.completedBy || []), OPENID] };
   } catch (err) {
     console.error('[completeTrip] Error:', err);
-    return { code: 500, message: err.message || '操作失败' };
+    return { code: 500, message: '操作失败' };
   }
 };

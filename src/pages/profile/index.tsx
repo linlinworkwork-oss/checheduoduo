@@ -1,21 +1,61 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { View, Text, Input, Picker } from '@tarojs/components';
-import Taro, { useDidShow, usePullDownRefresh } from '@tarojs/taro';
+import Taro, { useDidShow, usePullDownRefresh, useShareAppMessage, useShareTimeline } from '@tarojs/taro';
 import { useUserStore } from '../../stores/userStore';
-import { useTripStore, Trip } from '../../stores/tripStore';
-import { GENDER_OPTIONS } from '../../lib/constants';
+import { useTripStore } from '../../stores/tripStore';
+import { GENDER_OPTIONS, TRIP_STATUS_MAP } from '../../lib/constants';
 import Avatar from '../../components/ui/avatar';
+import TripRow from '../../components/trip-row';
 import './index.scss';
 
 export default function Profile() {
   const { user, loading, isLogin, updateProfile } = useUserStore();
   const { myCreatedTrips, myJoinedTrips, myCompletedTrips, getMyTrips } = useTripStore();
   const [editing, setEditing] = useState(false);
-  const [edit, setEdit] = useState({ nickName: '', phone: '', gender: 'female' as const });
+  const [edit, setEdit] = useState<{
+    nickName: string;
+    phone: string;
+    gender: 'male' | 'female';
+    studentId: string;
+    wechatId: string;
+  }>({
+    nickName: '',
+    phone: '',
+    gender: 'female',
+    studentId: '',
+    wechatId: '',
+  });
+
+  // 记录 useDidShow 是否因尚未登录而跳过（登录后由 effect 补拉一次）
+  const loginRefetchPending = useRef(false);
 
   useDidShow(() => {
-    if (isLogin) getMyTrips();
+    if (isLogin) {
+      getMyTrips();
+    } else {
+      // 登录完成前进入本页：标记待补拉，等 isLogin 变 true 后拉一次
+      loginRefetchPending.current = true;
+    }
   });
+
+  // 修复：登录完成前就进入本页时 useDidShow 已过（isLogin=false 被跳过），
+  // 这里在登录成功后补拉一次「我的行程」（仅当确实跳过时）。
+  useEffect(() => {
+    if (isLogin && loginRefetchPending.current) {
+      loginRefetchPending.current = false;
+      getMyTrips();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isLogin]);
+
+  // Share menu — required for the "转发" button to be available
+  useShareAppMessage(() => ({
+    title: '校园拼车 - 我的行程',
+    path: '/pages/profile/index',
+  }));
+  useShareTimeline(() => ({
+    title: '校园拼车 - 我的行程',
+  }));
 
   usePullDownRefresh(() => {
     getMyTrips().finally(() => Taro.stopPullDownRefresh());
@@ -23,20 +63,34 @@ export default function Profile() {
 
   useEffect(() => {
     if (user) {
-      setEdit({ nickName: user.nickName || '', phone: user.phone || '', gender: user.gender });
+      setEdit({
+        nickName: user.nickName || '',
+        phone: user.phone || '',
+        gender: user.gender,
+        studentId: user.studentId || '',
+        wechatId: user.wechatId || '',
+      });
     }
   }, [user]);
 
   const save = async () => {
+    if (!/^1\d{10}$/.test(edit.phone)) {
+      Taro.showToast({ title: '手机号为必填项，请输入正确的手机号', icon: 'none' });
+      return;
+    }
     await updateProfile(edit);
     setEditing(false);
     Taro.showToast({ title: '已保存', icon: 'success' });
   };
 
-  const goDetail = (t: Trip) => Taro.navigateTo({ url: `/pages/detail/index?id=${t._id}` });
-
   if (loading) {
-    return <View className="pg-profile"><View className="pro-empty"><Text>加载中...</Text></View></View>;
+    return (
+      <View className="pg-profile">
+        <View className="pro-empty">
+          <Text>加载中...</Text>
+        </View>
+      </View>
+    );
   }
 
   return (
@@ -58,18 +112,32 @@ export default function Profile() {
               />
               <Input
                 className="pro-edit__phone"
-                placeholder="手机号（方便拼车联系）"
+                placeholder="手机号（必填，方便拼车联系）"
                 type="number"
                 maxlength={11}
                 value={edit.phone}
                 onInput={(e: any) => setEdit((p) => ({ ...p, phone: e.detail.value }))}
+              />
+              <Input
+                className="pro-edit__phone"
+                placeholder="学号（选填）"
+                value={edit.studentId}
+                onInput={(e: any) => setEdit((p) => ({ ...p, studentId: e.detail.value }))}
+              />
+              <Input
+                className="pro-edit__phone"
+                placeholder="微信号（选填，拼车联系用）"
+                value={edit.wechatId}
+                onInput={(e: any) => setEdit((p) => ({ ...p, wechatId: e.detail.value }))}
               />
               <View className="pro-edit__row">
                 <Picker
                   mode="selector"
                   range={GENDER_OPTIONS.map((g) => g.label)}
                   value={GENDER_OPTIONS.findIndex((g) => g.value === edit.gender)}
-                  onChange={(e: any) => setEdit((p) => ({ ...p, gender: e.detail.value === 0 ? 'male' : 'female' }))}
+                  onChange={(e: any) =>
+                    setEdit((p) => ({ ...p, gender: e.detail.value === 0 ? 'male' : 'female' }))
+                  }
                 >
                   <View className="pro-edit__chip">
                     <Text>{GENDER_OPTIONS.find((g) => g.value === edit.gender)?.label}</Text>
@@ -91,10 +159,19 @@ export default function Profile() {
               {user?.phone ? (
                 <Text className="pro-info__phone">{user.phone}</Text>
               ) : (
-                <Text className="pro-info__no-phone">点击编辑填写手机号</Text>
+                <Text className="pro-info__no-phone">点击编辑填写手机号（必填）</Text>
+              )}
+              {(user?.studentId || user?.wechatId) && (
+                <Text className="pro-info__phone">
+                  {[user?.studentId && `学号 ${user.studentId}`, user?.wechatId && `微信 ${user.wechatId}`]
+                    .filter(Boolean)
+                    .join(' · ')}
+                </Text>
               )}
               <View className="pro-info__tags">
-                <Text className="pro-info__tag">{GENDER_OPTIONS.find((g) => g.value === user?.gender)?.label}</Text>
+                <Text className="pro-info__tag">
+                  {GENDER_OPTIONS.find((g) => g.value === user?.gender)?.label}
+                </Text>
               </View>
               <View className="pro-btn pro-btn--sec" onClick={() => setEditing(true)}>
                 <Text className="pro-btn__text">编辑资料</Text>
@@ -112,21 +189,17 @@ export default function Profile() {
             <Text className="pro-empty-list__text">还没有创建过行程</Text>
           </View>
         ) : (
-          myCreatedTrips.filter((t) => t.status !== 'cancelled').map((t) => (
-            <View key={t._id} className="pro-trip" onClick={() => goDetail(t)}>
-              <View className="pro-trip__route">
-                <Text className="pro-trip__from">{t.departureLocation.name}</Text>
-                <Text className="pro-trip__arrow">→</Text>
-                <Text className="pro-trip__to">{t.arrivalLocation.name}</Text>
-              </View>
-              <View className="pro-trip__meta">
-                <Text className="pro-trip__date">{t.departureDate}</Text>
-                <Text className={`pro-trip__status ${t.status === 'full' ? 'pro-trip__status--full' : ''}`}>
-                  {t.status === 'open' ? '拼车中' : t.status === 'full' ? '已满员' : '已取消'}
+          myCreatedTrips
+            .filter((t) => t.status !== 'cancelled')
+            .map((t) => (
+              <TripRow key={t._id} trip={t}>
+                <Text
+                  className={`pro-status${t.status === 'full' ? ' pro-status--full' : ''}`}
+                >
+                  {TRIP_STATUS_MAP[t.status]}
                 </Text>
-              </View>
-            </View>
-          ))
+              </TripRow>
+            ))
         )}
       </View>
 
@@ -138,21 +211,15 @@ export default function Profile() {
             <Text className="pro-empty-list__text">还没有加入过行程</Text>
           </View>
         ) : (
-          myJoinedTrips.filter((t) => t.status !== 'cancelled').map((t) => (
-            <View key={t._id} className="pro-trip" onClick={() => goDetail(t)}>
-              <View className="pro-trip__route">
-                <Text className="pro-trip__from">{t.departureLocation.name}</Text>
-                <Text className="pro-trip__arrow">→</Text>
-                <Text className="pro-trip__to">{t.arrivalLocation.name}</Text>
-              </View>
-              <View className="pro-trip__meta">
-                <Text className="pro-trip__date">{t.departureDate}</Text>
-                <Text className="pro-trip__status">
+          myJoinedTrips
+            .filter((t) => t.status !== 'cancelled')
+            .map((t) => (
+              <TripRow key={t._id} trip={t}>
+                <Text className="pro-status">
                   {t.currentPassengers}/{t.maxPassengers}人
                 </Text>
-              </View>
-            </View>
-          ))
+              </TripRow>
+            ))
         )}
       </View>
 
@@ -165,17 +232,11 @@ export default function Profile() {
           </View>
         ) : (
           myCompletedTrips.map((t) => (
-            <View key={t._id} className="pro-trip pro-trip--done" onClick={() => goDetail(t)}>
-              <View className="pro-trip__route">
-                <Text className="pro-trip__from">{t.departureLocation.name}</Text>
-                <Text className="pro-trip__arrow">→</Text>
-                <Text className="pro-trip__to">{t.arrivalLocation.name}</Text>
+            <TripRow key={t._id} trip={t} done>
+              <View className="pro-done-tag">
+                <Text>✓ 已完成</Text>
               </View>
-              <View className="pro-trip__meta">
-                <Text className="pro-trip__date">{t.departureDate}</Text>
-                <View className="pro-trip__done-tag"><Text>✓ 已完成</Text></View>
-              </View>
-            </View>
+            </TripRow>
           ))
         )}
       </View>

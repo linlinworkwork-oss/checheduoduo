@@ -9,7 +9,9 @@ function escapeRegex(s) {
 }
 
 exports.main = async (event) => {
-  const { OPENID } = cloud.getWXContext();
+  // Web 端（CloudBase SDK 匿名登录）拿不到微信 OPENID，用前端传入的 _uid 兜底
+  const { OPENID: wxOpenid } = cloud.getWXContext();
+  const OPENID = wxOpenid || event._uid;
 
   const {
     departureDate,
@@ -81,16 +83,21 @@ exports.main = async (event) => {
       .limit(pageSize + 1)
       .get();
 
-    const cutoff = Date.now() - 20 * 60 * 1000;
+    const now = Date.now();
     const filtered = data.filter((trip) => {
       // Exclude trips current user has completed
       if (OPENID && trip.completedBy && trip.completedBy.includes(OPENID)) return false;
       // Exclude trips the creator has completed (trip is done)
       if (trip.completedBy && trip.creatorId && trip.completedBy.includes(trip.creatorId)) return false;
-      // Exclude trips whose departure window ended more than 20 min ago
+      // Exclude trips whose departure window has already ended
       if (!trip.departureDate || !trip.departureTimeEnd) return true;
-      const endTime = new Date(`${trip.departureDate}T${trip.departureTimeEnd}:00`).getTime();
-      return !isNaN(endTime) && endTime > cutoff;
+      // Prefer the client-computed absolute timestamp (timezone-safe);
+      // fall back to parsing the strings for legacy trips.
+      const endTime =
+        typeof trip.departureEndTime === 'number' && trip.departureEndTime > 0
+          ? trip.departureEndTime
+          : new Date(`${trip.departureDate}T${trip.departureTimeEnd}:00`).getTime();
+      return !isNaN(endTime) && endTime > now;
     });
 
     const trips = filtered.slice(0, pageSize);

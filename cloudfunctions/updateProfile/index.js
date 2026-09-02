@@ -4,10 +4,12 @@ cloud.init({ env: cloud.DYNAMIC_CURRENT_ENV });
 const db = cloud.database();
 
 exports.main = async (event) => {
-  const { OPENID } = cloud.getWXContext();
+  // Web 端（CloudBase SDK 匿名登录）拿不到微信 OPENID，用前端传入的 _uid 兜底
+  const { OPENID: wxOpenid } = cloud.getWXContext();
+  const OPENID = wxOpenid || event._uid;
   if (!OPENID) return { code: 401, message: '请先登录' };
 
-  const allowedFields = ['nickName', 'avatarUrl', 'phone', 'gender'];
+  const allowedFields = ['nickName', 'avatarUrl', 'phone', 'gender', 'studentId', 'wechatId'];
   const updateData = {};
 
   allowedFields.forEach((field) => {

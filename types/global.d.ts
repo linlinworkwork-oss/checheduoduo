@@ -15,14 +15,3 @@ declare namespace NodeJS {
     TARO_ENV: 'weapp' | 'swan' | 'alipay' | 'h5' | 'rn' | 'tt' | 'quickapp' | 'qq' | 'jd';
   }
 }
-
-/* Cloud function invocation helper types */
-interface ICloudCallResult<T = any> {
-  result: T;
-  requestID: string;
-}
-
-interface ICloudCallFunction {
-  name: string;
-  data?: Record<string, unknown>;
-}

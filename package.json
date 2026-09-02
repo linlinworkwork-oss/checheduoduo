@@ -10,7 +10,10 @@
   "scripts": {
     "build:weapp": "taro build --type weapp",
     "dev:weapp": "npm run build:weapp -- --watch",
-    "prod:weapp": "taro build --type weapp --mode production"
+    "prod:weapp": "taro build --type weapp --mode production",
+    "build:h5": "taro build --type h5",
+    "dev:h5": "npm run build:h5 -- --watch",
+    "prod:h5": "taro build --type h5 --mode production"
   },
   "browserslist": [
     "defaults and fully supports es6-module",
@@ -22,6 +25,7 @@
     "@tarojs/components": "4.1.9",
     "@tarojs/helper": "4.1.9",
     "@tarojs/plugin-framework-react": "4.1.9",
+    "@tarojs/plugin-platform-h5": "^4.1.9",
     "@tarojs/plugin-platform-weapp": "4.1.9",
     "@tarojs/react": "4.1.9",
     "@tarojs/runtime": "4.1.9",

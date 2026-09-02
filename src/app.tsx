@@ -15,8 +15,8 @@ function App({ children }: PropsWithChildren) {
       console.error('[App] Unhandled error:', err);
     });
 
-    initCloud();
-    initUser();
+    // 方案 B：初始化 API 客户端（生成/读取本地匿名 uid），再拉取用户档案
+    initCloud().finally(() => initUser());
   });
 
   return children;

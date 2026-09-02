@@ -4,11 +4,20 @@ import Taro from '@tarojs/taro';
 import { useUserStore } from '../../stores/userStore';
 import './phone-popup.scss';
 
+/** 「跳过」持久化：跳过后不再每次打开页面都全屏弹窗拦截浏览 */
+const SKIP_KEY = 'phone_popup_skip_v1';
+
 export default function PhonePopup() {
   const { user, loading, updateProfile } = useUserStore();
   const [phone, setPhone] = useState('');
   const [saving, setSaving] = useState(false);
-  const [skipped, setSkipped] = useState(false);
+  const [skipped, setSkipped] = useState(() => {
+    try {
+      return !!Taro.getStorageSync(SKIP_KEY);
+    } catch {
+      return false;
+    }
+  });
 
   // Don't show while still loading user data, or if phone already set, or user explicitly skipped
   if (loading || user?.phone || skipped) return null;
@@ -30,6 +39,11 @@ export default function PhonePopup() {
   };
 
   const skip = () => {
+    try {
+      Taro.setStorageSync(SKIP_KEY, true);
+    } catch {
+      /* ignore */
+    }
     setSkipped(true);
   };
 

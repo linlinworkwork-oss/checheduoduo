@@ -12,7 +12,7 @@ interface Props {
 export default function TripCard({ trip }: Props) {
   const { user } = useUserStore();
   const {
-    _id, departureDate, departureTimeStart, departureTimeEnd,
+    _id, departureDate, departureTimeEnd,
     departureLocation, arrivalLocation, ticketTime,
     currentPassengers, maxPassengers, status, creator, passengers = [],
   } = trip;
@@ -62,6 +62,14 @@ export default function TripCard({ trip }: Props) {
           </View>
         ) : null}
       </View>
+
+      {/* Note — optional */}
+      {trip.note ? (
+        <View className="tcard__note">
+          <Text className="tcard__note-icon">💬</Text>
+          <Text className="tcard__note-text">{trip.note}</Text>
+        </View>
+      ) : null}
 
       {/* Bottom: creator + spots */}
       <View className="tcard__footer">

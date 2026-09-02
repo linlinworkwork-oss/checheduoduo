@@ -1,14 +1,26 @@
 import { useState } from 'react';
 import { View, Text } from '@tarojs/components';
-import Taro, { useRouter } from '@tarojs/taro';
-import { useTripStore } from '../../stores/tripStore';
+import Taro, { useRouter, useDidShow, useShareAppMessage, useShareTimeline } from '@tarojs/taro';
+import { useTripStore, Trip } from '../../stores/tripStore';
 import { useUserStore } from '../../stores/userStore';
 import Avatar from '../../components/ui/avatar';
-import { LUGGAGE_SIZE_MAP, LUGGAGE_OPTIONS } from '../../lib/constants';
+import { LUGGAGE_SIZE_MAP, LUGGAGE_OPTIONS, GENDER_MAP, TRIP_STATUS_MAP } from '../../lib/constants';
+import { confirmIfDepartingSoon, isDepartureEnded } from '../../lib/trip';
 import './index.scss';
 
 const LUGGAGE_LABELS = LUGGAGE_OPTIONS.map((l) => l.label);
 const LUGGAGE_VALUES = LUGGAGE_OPTIONS.map((l) => l.value);
+
+/** 拼接同行者可见的联系方式（手机号 / 学号 / 微信号），无则返回空串。 */
+function contactText(c: { phone?: string; studentId?: string; wechatId?: string }): string {
+  return [
+    c.phone && `手机 ${c.phone}`,
+    c.studentId && `学号 ${c.studentId}`,
+    c.wechatId && `微信 ${c.wechatId}`,
+  ]
+    .filter(Boolean)
+    .join(' · ');
+}
 
 /** Guard trip._id, show confirmation modal, execute action, toast result. */
 async function guardedAction(
@@ -20,32 +32,69 @@ async function guardedAction(
   err: string,
   after?: () => void,
 ) {
-  if (!tripId) { Taro.showToast({ title: '行程数据异常', icon: 'error' }); return; }
+  if (!tripId) {
+    Taro.showToast({ title: '行程数据异常', icon: 'error' });
+    return;
+  }
   const r = await Taro.showModal({ title, content });
   if (!r.confirm) return;
-  try { await fn(); Taro.showToast({ title: ok, icon: 'success' }); after?.(); }
-  catch (e: unknown) { Taro.showToast({ title: (e instanceof Error ? e.message : '') || err, icon: 'error' }); }
+  try {
+    await fn();
+    Taro.showToast({ title: ok, icon: 'success' });
+    after?.();
+  } catch (e: unknown) {
+    Taro.showToast({ title: (e instanceof Error ? e.message : '') || err, icon: 'error' });
+  }
 }
 
 export default function Detail() {
   const router = useRouter();
   const { id } = router.params;
-  const { trips, myCreatedTrips, myJoinedTrips, myCompletedTrips, joinTrip, leaveTrip, cancelTrip, completeTrip } = useTripStore();
+  const { getTrip, joinTrip, leaveTrip, cancelTrip, completeTrip } = useTripStore();
   const { user } = useUserStore();
+  const [trip, setTrip] = useState<Trip | null>(null);
+  const [missing, setMissing] = useState(false);
   const [joining, setJoining] = useState(false);
 
-  const trip =
-    trips.find((t) => t._id === id) ||
-    myCreatedTrips.find((t) => t._id === id) ||
-    myJoinedTrips.find((t) => t._id === id) ||
-    myCompletedTrips.find((t) => t._id === id);
+  const load = async () => {
+    if (!id) {
+      setMissing(true);
+      return;
+    }
+    try {
+      setTrip(await getTrip(id));
+      setMissing(false);
+    } catch {
+      // Only report "missing" when we have nothing to show; otherwise keep the stale trip.
+      if (trip === null) setMissing(true);
+    }
+  };
 
-  if (!trip) {
+  useDidShow(load);
+
+  // Share menu — required for the "转发" button to be available.
+  // Shares the concrete trip; recipients open the detail page directly.
+  useShareAppMessage(() => ({
+    title: trip
+      ? `${trip.departureLocation.name} → ${trip.arrivalLocation.name} 拼车，一起出发吗？`
+      : '校园拼车',
+    path: `/pages/detail/index?id=${id}`,
+  }));
+  useShareTimeline(() => ({
+    title: trip
+      ? `${trip.departureLocation.name} → ${trip.arrivalLocation.name} 拼车`
+      : '校园拼车',
+    query: id ? `id=${id}` : '',
+  }));
+
+  if (!trip || missing) {
     return (
       <View className="pg-detail">
         <View className="det-empty">
           <Text className="det-empty__icon">🫥</Text>
-          <Text className="det-empty__text">行程不存在或已删除</Text>
+          <Text className="det-empty__text">
+            {trip === null && !missing ? '加载中...' : '行程不存在或已删除'}
+          </Text>
         </View>
       </View>
     );
@@ -57,8 +106,7 @@ export default function Detail() {
   const isFull = trip.status === 'full';
   const isCancelled = trip.status === 'cancelled';
   const isCompletedByMe = (trip.completedBy || []).includes(user?.openid || '');
-  const departureEndTime = new Date(`${trip.departureDate}T${trip.departureTimeEnd}:00`).getTime();
-  const isPastDeparture = Date.now() >= departureEndTime;
+  const isPastDeparture = isDepartureEnded(trip);
 
   const handleJoin = async () => {
     if (!user?.nickName || !user?.phone) {
@@ -69,26 +117,61 @@ export default function Detail() {
       const res = await Taro.showActionSheet({ itemList: LUGGAGE_LABELS, itemColor: '#1a1a1c' });
       const luggageSize = LUGGAGE_VALUES[res.tapIndex];
 
-      const minutesLeft = Math.round((departureEndTime - Date.now()) / 60000);
-      if (minutesLeft <= 20 && minutesLeft > 0) {
-        const confirmed = await Taro.showModal({
-          title: '临近出发时间',
-          content: `该行程最晚出发时间还剩 ${minutesLeft} 分钟，确定加入吗？`,
-          confirmText: '确定加入',
-        });
-        if (!confirmed.confirm) return;
-      }
+      if (!(await confirmIfDepartingSoon(trip, '加入'))) return;
 
       setJoining(true);
-      try { await joinTrip(trip._id, luggageSize); Taro.showToast({ title: '加入成功', icon: 'success' }); }
-      catch (e: unknown) { Taro.showToast({ title: (e instanceof Error ? e.message : '') || '加入失败', icon: 'error' }); }
-      finally { setJoining(false); }
-    } catch { /* user cancelled action sheet */ }
+      try {
+        setTrip(await joinTrip(trip._id, luggageSize));
+        Taro.showToast({ title: '加入成功', icon: 'success' });
+      } catch (e: unknown) {
+        Taro.showToast({ title: (e instanceof Error ? e.message : '') || '加入失败', icon: 'error' });
+      } finally {
+        setJoining(false);
+      }
+    } catch {
+      /* user cancelled action sheet */
+    }
   };
 
-  const handleLeave = () => guardedAction(trip._id, '退出行程', '确定退出吗？', () => leaveTrip(trip._id), '已退出', '失败');
-  const handleComplete = () => guardedAction(trip._id, '标记完成', '确定将该行程标记为已完成吗？仅对你生效。', () => completeTrip(trip._id), '已标记完成', '操作失败');
-  const handleCancel = () => guardedAction(trip._id, '取消行程', '确定取消吗？已加入的同学会看到。', () => cancelTrip(trip._id), '已取消', '失败', () => { Taro.navigateBack(); });
+  const handleLeave = () =>
+    guardedAction(
+      trip._id,
+      '退出行程',
+      '确定退出吗？',
+      async () => {
+        setTrip(await leaveTrip(trip._id));
+      },
+      '已退出',
+      '失败',
+    );
+
+  const handleComplete = () =>
+    guardedAction(
+      trip._id,
+      '标记完成',
+      '确定将该行程标记为已完成吗？仅对你生效。',
+      async () => {
+        const completedBy = await completeTrip(trip._id);
+        setTrip({ ...trip, completedBy });
+      },
+      '已标记完成',
+      '操作失败',
+    );
+
+  const handleCancel = () =>
+    guardedAction(
+      trip._id,
+      '取消行程',
+      '确定取消吗？已加入的同学会看到。',
+      async () => {
+        await cancelTrip(trip._id);
+      },
+      '已取消',
+      '失败',
+      () => {
+        Taro.navigateBack();
+      },
+    );
 
   return (
     <View className="pg-detail">
@@ -98,14 +181,16 @@ export default function Detail() {
         <View className="det-hero__glow det-hero__glow--bot" />
 
         <View className={`det-hero__badge ${isFull || isCancelled ? 'det-hero__badge--off' : ''}`}>
-          <Text>{isCancelled ? '已取消' : isFull ? '已满员' : '拼车中'}</Text>
+          <Text>{TRIP_STATUS_MAP[trip.status]}</Text>
         </View>
 
         <View className="det-hero__route">
           <View className="det-hero__node">
             <View className="det-hero__dot det-hero__dot--from" />
             <View>
-              <Text className="det-hero__time">{trip.departureDate} {trip.departureTimeStart}</Text>
+              <Text className="det-hero__time">
+                {trip.departureDate} {trip.departureTimeStart}
+              </Text>
               <Text className="det-hero__place">{trip.departureLocation.name}</Text>
             </View>
           </View>
@@ -131,17 +216,27 @@ export default function Detail() {
           <Avatar src={trip.creator.avatarUrl} size={36} name={trip.creator.nickName} />
           <View className="det-card__info">
             <Text className="det-card__name">{trip.creator.nickName || '同学'}</Text>
-            <Text className="det-card__sub">
-              {trip.creator.gender === 'female' ? '女' : '男'}
-              {isParticipant && trip.creator.phone ? ` · ${trip.creator.phone}` : ''}
-            </Text>
+            <Text className="det-card__sub">{GENDER_MAP[trip.creator.gender]}</Text>
+            {isParticipant && contactText(trip.creator) ? (
+              <Text className="det-card__sub">{contactText(trip.creator)}</Text>
+            ) : null}
           </View>
         </View>
       </View>
 
+      {/* Note — optional */}
+      {trip.note ? (
+        <View className="det-card">
+          <Text className="det-card__title">备注</Text>
+          <Text className="det-note">{trip.note}</Text>
+        </View>
+      ) : null}
+
       {/* Passengers */}
       <View className="det-card">
-        <Text className="det-card__title">同行伙伴 · {trip.currentPassengers}/{trip.maxPassengers}</Text>
+        <Text className="det-card__title">
+          同行伙伴 · {trip.currentPassengers}/{trip.maxPassengers}
+        </Text>
         {trip.passengers.map((p) => (
           <View key={p.userId} className="det-pass">
             <Avatar src={p.avatarUrl} size={32} name={p.nickName} />
@@ -149,13 +244,17 @@ export default function Detail() {
               <View className="det-pass__name-row">
                 <Text className="det-pass__name">{p.nickName || '同学'}</Text>
                 {p.userId === trip.creatorId && (
-                  <View className="det-pass__tag"><Text>发起人</Text></View>
+                  <View className="det-pass__tag">
+                    <Text>发起人</Text>
+                  </View>
                 )}
               </View>
               <Text className="det-pass__meta">
-                {p.gender === 'female' ? '女' : '男'} · {LUGGAGE_SIZE_MAP[p.luggageSize]}
-                {isParticipant && p.phone ? ` · ${p.phone}` : ''}
+                {GENDER_MAP[p.gender]} · {LUGGAGE_SIZE_MAP[p.luggageSize]}
               </Text>
+              {isParticipant && contactText(p) ? (
+                <Text className="det-pass__meta">{contactText(p)}</Text>
+              ) : null}
             </View>
           </View>
         ))}

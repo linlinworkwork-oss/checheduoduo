@@ -1,8 +1,11 @@
 import { useState, useMemo } from 'react';
 import { View, Text, Textarea, Picker, ScrollView } from '@tarojs/components';
-import Taro from '@tarojs/taro';
+import Taro, { useShareAppMessage, useShareTimeline } from '@tarojs/taro';
 import { useTripStore } from '../../stores/tripStore';
+import { useUserStore } from '../../stores/userStore';
 import { MAX_PASSENGERS_OPTIONS, LUGGAGE_OPTIONS, LOCATION_OPTIONS } from '../../lib/constants';
+import { todayStr } from '../../lib/date';
+import { confirmIfDepartingSoon } from '../../lib/trip';
 import './index.scss';
 
 interface FormData {
@@ -33,9 +36,19 @@ const INITIAL: FormData = {
 
 export default function Create() {
   const { createTrip } = useTripStore();
+  const { user } = useUserStore();
   const [submitting, setSubmitting] = useState(false);
   const [form, setForm] = useState<FormData>(INITIAL);
   const [errors, setErrors] = useState<Partial<Record<keyof FormData, string>>>({});
+
+  // Share menu — required for the "转发" button to be available
+  useShareAppMessage(() => ({
+    title: '发布拼车行程 - 校园拼车',
+    path: '/pages/create/index',
+  }));
+  useShareTimeline(() => ({
+    title: '发布拼车行程 - 校园拼车',
+  }));
 
   const set = (f: keyof FormData, v: any) => {
     setForm((p) => {
@@ -65,32 +78,18 @@ export default function Create() {
         success: (res) => done(`${option.name} ${option.children![res.tapIndex]}`),
       });
     } else if (option.customChild) {
-      Taro.showModal({
+      // `editable` / `placeholderText` are newer WeChat APIs missing from Taro 4 types
+      (Taro.showModal as any)({
         title: option.name,
         editable: true,
         placeholderText: '如：北门、东门...',
-        success: (res) => {
+        success: (res: any) => {
           if (res.confirm && res.content) done(`${option.name} ${res.content}`);
         },
       });
     } else {
       done(option.name);
     }
-  };
-
-  const chooseLoc = (type: 'departure' | 'arrival') => () => {
-    Taro.chooseLocation({
-      latitude: 30.4757,
-      longitude: 114.3873,
-      success: (loc: any) => {
-        const name = (form[`${type}Name` as keyof FormData] as string) || loc.name || loc.address || '';
-        set(`${type}Name` as any, name);
-        set(`${type}Address` as any, loc.address || name);
-        set(`${type}Lat` as any, loc.latitude);
-        set(`${type}Lng` as any, loc.longitude);
-      },
-      fail: () => {}, // user cancelled, ignore
-    });
   };
 
   const progress = useMemo(() => {
@@ -101,10 +100,7 @@ export default function Create() {
     return Math.round((keys.filter((k) => !!form[k]).length / keys.length) * 100);
   }, [form]);
 
-  const today = useMemo(() => {
-    const d = new Date();
-    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
-  }, []);
+  const today = useMemo(() => todayStr(), []);
 
   const validate = (): boolean => {
     const e: any = {};
@@ -126,17 +122,14 @@ export default function Create() {
   const submit = async () => {
     if (!validate()) return;
 
-    // Warn if departure end is within 20 min
-    const departureEnd = new Date(`${form.departureDate}T${form.departureTimeEnd}:00`).getTime();
-    const minutesLeft = Math.round((departureEnd - Date.now()) / 60000);
-    if (minutesLeft <= 20 && minutesLeft > 0) {
-      const r = await Taro.showModal({
-        title: '临近出发时间',
-        content: `最晚出发时间还剩 ${minutesLeft} 分钟，确定发布吗？`,
-        confirmText: '确定发布',
-      });
-      if (!r.confirm) return;
+    // 手机号为必填：发布前必须已在"我的"填写手机号
+    if (!user?.phone) {
+      Taro.showToast({ title: '请先在"我的"页面填写手机号后再发布', icon: 'none' });
+      return;
     }
+
+    // Warn if departure end is within 20 min
+    if (!(await confirmIfDepartingSoon(form, '发布'))) return;
 
     setSubmitting(true);
     try {
@@ -144,6 +137,10 @@ export default function Create() {
         departureDate: form.departureDate,
         departureTimeStart: form.departureTimeStart,
         departureTimeEnd: form.departureTimeEnd,
+        // 设备时区解析为绝对时间戳，避免云函数 UTC 时区导致的 8 小时偏差
+        departureEndTime: new Date(
+          `${form.departureDate}T${form.departureTimeEnd}:00`,
+        ).getTime(),
         departureLocation: {
           name: form.departureName.trim(),
           address: form.departureAddress || form.departureName.trim(),

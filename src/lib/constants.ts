@@ -44,5 +44,3 @@ export const LOCATION_OPTIONS: LocationOption[] = [
   { name: '中南财首义校区', children: ['南门', '北门'] },
   { name: '中南财南湖校区', customChild: true },
 ];
-
-export const LOCATION_LABELS = LOCATION_OPTIONS.map((l) => l.name);

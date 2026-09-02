@@ -14,12 +14,6 @@ export default defineAppConfig({
     backgroundColor: '#f5f5f7',
     enablePullDownRefresh: true,
   },
-  permission: {
-    'scope.userLocation': {
-      desc: '需要获取你的位置来显示附近的出发地点',
-    },
-  },
-  requiredPrivateInfos: ['getLocation', 'chooseLocation'],
   tabBar: {
     color: '#86868b',
     selectedColor: '#007aff',

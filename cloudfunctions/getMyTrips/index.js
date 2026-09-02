@@ -11,7 +11,12 @@ async function autoCompleteTrip(trip, openid) {
   if (list.includes(openid)) return true;
 
   if (!trip.departureDate || !trip.departureTimeEnd) return false;
-  const endTime = new Date(`${trip.departureDate}T${trip.departureTimeEnd}:00`).getTime();
+  // Prefer the client-computed absolute timestamp (timezone-safe);
+  // fall back to parsing the strings for legacy trips.
+  const endTime =
+    typeof trip.departureEndTime === 'number' && trip.departureEndTime > 0
+      ? trip.departureEndTime
+      : new Date(`${trip.departureDate}T${trip.departureTimeEnd}:00`).getTime();
   if (isNaN(endTime)) return false;
 
   const now = Date.now();
@@ -24,8 +29,10 @@ async function autoCompleteTrip(trip, openid) {
   return true;
 }
 
-exports.main = async () => {
-  const { OPENID } = cloud.getWXContext();
+exports.main = async (event) => {
+  // Web 端（CloudBase SDK 匿名登录）拿不到微信 OPENID，用前端传入的 _uid 兜底
+  const { OPENID: wxOpenid } = cloud.getWXContext();
+  const OPENID = wxOpenid || event._uid;
   if (!OPENID) return { code: 401, message: '请先登录' };
 
   try {

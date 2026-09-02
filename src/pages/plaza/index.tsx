@@ -1,13 +1,28 @@
-import { useState, useMemo } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { View, Text, Input, ScrollView } from '@tarojs/components';
-import Taro, { useDidShow, useReachBottom, usePullDownRefresh } from '@tarojs/taro';
-import { useTripStore } from '../../stores/tripStore';
+import Taro, {
+  useDidShow,
+  useReachBottom,
+  usePullDownRefresh,
+  useShareAppMessage,
+  useShareTimeline,
+} from '@tarojs/taro';
+import { useTripStore, ListTripsFilter } from '../../stores/tripStore';
 import { LOCATION_OPTIONS } from '../../lib/constants';
+import { todayStr, formatDate, addDays } from '../../lib/date';
 import TripCard from '../../components/trip-card';
 import PhonePopup from '../../components/ui/phone-popup';
 import './index.scss';
 
 type FilterTab = 'departure' | 'arrival' | 'status' | null;
+
+/** 免责声明 — 只在首次打开时弹出一次 */
+const DISCLAIMER_KEY = 'disclaimer_read_v1';
+const DISCLAIMER_TEXT =
+  '本小程序仅作为校园拼车信息发布平台，为同学提供行程信息的展示与撮合服务。' +
+  '拼车双方的联系、协商及出行安排等后续事宜，需由同行人员自行沟通决定；' +
+  '本平台不参与同行过程，不对行程联系、交易及出行安全承担任何责任。' +
+  '请同学们自行核实信息，注意出行安全。';
 
 export default function Plaza() {
   const { trips, loading, hasMore, error, listTrips, loadMore, refreshTrips } = useTripStore();
@@ -21,19 +36,28 @@ export default function Plaza() {
   const [arrivalFilters, setArrivalFilters] = useState<string[]>([]);
   const [hideFull, setHideFull] = useState(true);
 
-  const todayStr = useMemo(() => {
-    const d = new Date();
-    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+  // 首次打开时弹出平台免责声明
+  useEffect(() => {
+    if (Taro.getStorageSync(DISCLAIMER_KEY)) return;
+    Taro.showModal({
+      title: '平台声明',
+      content: DISCLAIMER_TEXT,
+      showCancel: false,
+      confirmText: '我知道了',
+      success: () => Taro.setStorageSync(DISCLAIMER_KEY, true),
+    });
   }, []);
 
-  const filter = useMemo(() => {
-    const f: any = { keyword, hideFull };
-    if (activeTab === 'today') f.departureDate = todayStr;
+  const today = useMemo(() => todayStr(), []);
+
+  const filter = useMemo<ListTripsFilter>(() => {
+    const f: ListTripsFilter = { keyword, hideFull };
+    if (activeTab === 'today') f.departureDate = today;
     else if (selectedDate) f.departureDate = selectedDate;
     if (departureFilters.length > 0) f.departureNames = departureFilters;
     if (arrivalFilters.length > 0) f.arrivalNames = arrivalFilters;
     return f;
-  }, [activeTab, selectedDate, keyword, todayStr, departureFilters, arrivalFilters, hideFull]);
+  }, [activeTab, selectedDate, keyword, today, departureFilters, arrivalFilters, hideFull]);
 
   const activeFilterCount =
     departureFilters.length + arrivalFilters.length + (hideFull ? 0 : 1);
@@ -50,17 +74,34 @@ export default function Plaza() {
     refreshTrips(filter).finally(() => Taro.stopPullDownRefresh());
   });
 
-  const dateChips = useMemo(() => {
-    return Array.from({ length: 7 }, (_, i) => {
-      const d = new Date();
-      d.setDate(d.getDate() + i);
-      const ds = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
-      const label = i === 0 ? '今天' : i === 1 ? '明天' : i === 2 ? '后天' : `${d.getMonth() + 1}/${d.getDate()}`;
-      return { date: ds, label };
-    });
-  }, []);
+  // Share menu — required for the "转发" button to be available
+  useShareAppMessage(() => ({
+    title: '校园拼车 - 找到同路的同学',
+    path: '/pages/plaza/index',
+  }));
+  useShareTimeline(() => ({
+    title: '校园拼车 - 找到同路的同学',
+  }));
+
+  const dateChips = useMemo(
+    () =>
+      Array.from({ length: 7 }, (_, i) => {
+        const d = addDays(new Date(), i);
+        const label =
+          i === 0 ? '今天' : i === 1 ? '明天' : i === 2 ? '后天' : `${d.getMonth() + 1}/${d.getDate()}`;
+        return { date: formatDate(d), label };
+      }),
+    [],
+  );
 
   const handleSearch = () => refreshTrips(filter);
+
+  /** Refresh the list with the current filter plus one-off overrides (used by date chips). */
+  const applyFilter = (overrides: Partial<ListTripsFilter> = {}) => {
+    const next: ListTripsFilter = { ...filter, ...overrides };
+    if (next.departureDate === undefined) delete next.departureDate;
+    refreshTrips(next);
+  };
 
   const toggleFilter = (tab: FilterTab) => {
     setFilterOpen((prev) => (prev === tab ? null : tab));
@@ -116,13 +157,21 @@ export default function Plaza() {
       <ScrollView className="plaza-chips" scrollX showScrollbar={false}>
         <View
           className={`plaza-chips__item ${activeTab === 'all' && !selectedDate ? 'plaza-chips__item--on' : ''}`}
-          onClick={() => { setActiveTab('all'); setSelectedDate(''); refreshTrips({ keyword, hideFull, departureNames: departureFilters, arrivalNames: arrivalFilters }); }}
+          onClick={() => {
+            setActiveTab('all');
+            setSelectedDate('');
+            applyFilter({ departureDate: undefined });
+          }}
         >
           <Text>全部</Text>
         </View>
         <View
           className={`plaza-chips__item ${activeTab === 'today' ? 'plaza-chips__item--on' : ''}`}
-          onClick={() => { setActiveTab('today'); setSelectedDate(''); refreshTrips({ departureDate: todayStr, keyword, hideFull, departureNames: departureFilters, arrivalNames: arrivalFilters }); }}
+          onClick={() => {
+            setActiveTab('today');
+            setSelectedDate('');
+            applyFilter({ departureDate: today });
+          }}
         >
           <Text>今天出发</Text>
         </View>
@@ -130,7 +179,11 @@ export default function Plaza() {
           <View
             key={date}
             className={`plaza-chips__item ${activeTab === 'all' && selectedDate === date ? 'plaza-chips__item--on' : ''}`}
-            onClick={() => { setActiveTab('all'); setSelectedDate(date); refreshTrips({ departureDate: date, keyword, hideFull, departureNames: departureFilters, arrivalNames: arrivalFilters }); }}
+            onClick={() => {
+              setActiveTab('all');
+              setSelectedDate(date);
+              applyFilter({ departureDate: date });
+            }}
           >
             <Text>{label}</Text>
           </View>

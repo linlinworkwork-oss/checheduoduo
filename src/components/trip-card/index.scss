@@ -104,6 +104,36 @@
   color: #636366;
 }
 
+/* Note — optional, up to 2 lines */
+.tcard__note {
+  display: flex;
+  align-items: flex-start;
+  gap: 6px;
+  margin: -4px 0 12px;
+  padding: 8px 12px;
+  background: #f8f7f4;
+  border-radius: 10px;
+}
+
+.tcard__note-icon {
+  font-size: 11px;
+  flex-shrink: 0;
+  line-height: 1.6;
+}
+
+.tcard__note-text {
+  flex: 1;
+  min-width: 0;
+  font-size: 12px;
+  color: #636366;
+  line-height: 1.6;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  overflow: hidden;
+  word-break: break-all;
+}
+
 /* Footer */
 .tcard__footer {
   display: flex;

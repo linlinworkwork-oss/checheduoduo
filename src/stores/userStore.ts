@@ -9,6 +9,10 @@ export interface UserProfile {
   nickName: string;
   phone: string;
   gender: 'male' | 'female';
+  /** 学号（可选） */
+  studentId?: string;
+  /** 微信号（可选） */
+  wechatId?: string;
   createdAt?: number;
 }
 
@@ -30,14 +34,11 @@ export const useUserStore = create<UserState>((set, get) => ({
   initUser: async () => {
     set({ loading: true });
     try {
-      const res = await callCloudFunction<{ code: number; user?: UserProfile; message?: string }>(
-        'login',
-        {},
-      );
+      const res = await callCloudFunction<{ user?: UserProfile }>('login', {});
       if (res?.user) {
         set({ user: res.user, isLogin: true });
       } else {
-        console.warn('[User] login returned no user:', res?.message);
+        console.warn('[User] login returned no user');
       }
     } catch (err) {
       console.error('[User] Login failed:', err);
@@ -49,9 +50,7 @@ export const useUserStore = create<UserState>((set, get) => ({
   updateProfile: async (data) => {
     const current = get().user;
     if (!current) return;
-    const res = await callCloudFunction<{ code: number; user: UserProfile }>('updateProfile', {
-      ...data,
-    });
+    const res = await callCloudFunction<{ user: UserProfile }>('updateProfile', { ...data });
     if (res?.user) {
       set({ user: { ...current, ...res.user } });
     }

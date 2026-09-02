@@ -175,63 +175,19 @@
   }
 }
 
-.pro-trip {
-  padding: 14px 16px;
-  background: #fff;
-  border-radius: 16px;
-  margin-bottom: 8px;
-  box-shadow: 0 1px 4px rgba(0,0,0,0.03);
-
-  &:active { opacity: 0.8; }
-}
-
-.pro-trip__route {
-  display: flex;
-  align-items: center;
-  gap: 4px;
-  margin-bottom: 4px;
-}
-
-.pro-trip__from,
-.pro-trip__to {
-  flex: 1;
-  font-size: 14px;
-  font-weight: 500;
-  color: #1a1a1c;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.pro-trip__to { text-align: right; }
-
-.pro-trip__arrow {
-  color: #c7c7cc;
-  font-size: 12px;
-}
-
-.pro-trip__meta {
-  display: flex;
-  justify-content: space-between;
-}
-
-.pro-trip__date {
-  font-size: 12px;
-  color: #8e8e93;
-}
-
-.pro-trip__status {
+/* Trip status label rendered inside the shared TripRow (right side of meta row) */
+.pro-status {
   font-size: 12px;
   color: #3b4cca;
   font-weight: 500;
 
-  &--full { color: #ff3b30; }
+  &--full {
+    color: #ff3b30;
+  }
 }
 
-.pro-trip--done { opacity: 0.6; }
-
-.pro-trip__done-tag {
+.pro-done-tag {
   font-size: 11px;
-  color: #34C759;
+  color: #34c759;
   font-weight: 500;
 }

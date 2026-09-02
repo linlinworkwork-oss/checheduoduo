@@ -5,7 +5,9 @@ const db = cloud.database();
 const _ = db.command;
 
 exports.main = async (event) => {
-  const { OPENID } = cloud.getWXContext();
+  // Web 端（CloudBase SDK 匿名登录）拿不到微信 OPENID，用前端传入的 _uid 兜底
+  const { OPENID: wxOpenid } = cloud.getWXContext();
+  const OPENID = wxOpenid || event._uid;
   if (!OPENID) return { code: 401, message: '请先登录' };
 
   const { tripId } = event;

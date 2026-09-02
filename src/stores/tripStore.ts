@@ -1,7 +1,6 @@
 import { create } from 'zustand';
 import Taro from '@tarojs/taro';
 import { callCloudFunction } from '../lib/cloud';
-import { useUserStore } from './userStore';
 
 const DEFAULT_PAGE_SIZE = 20;
 
@@ -19,6 +18,8 @@ export interface Passenger {
   phone: string;
   gender: 'male' | 'female';
   luggageSize: 'none' | 'small' | 'medium' | 'large' | 'xlarge';
+  studentId?: string;
+  wechatId?: string;
   joinedAt: number;
 }
 
@@ -30,10 +31,14 @@ export interface Trip {
     avatarUrl: string;
     phone: string;
     gender: 'male' | 'female';
+    studentId?: string;
+    wechatId?: string;
   };
   departureDate: string;
   departureTimeStart: string;
   departureTimeEnd: string;
+  /** 绝对时间戳（ms），前端计算后随行程存储，用于无时区偏差的时间比较。 */
+  departureEndTime?: number;
   departureLocation: TripLocation;
   arrivalLocation: TripLocation;
   ticketTime: string;
@@ -42,6 +47,7 @@ export interface Trip {
   status: 'open' | 'full' | 'cancelled';
   passengers: Passenger[];
   completedBy?: string[];
+  note?: string;
   createdAt: number;
 }
 
@@ -49,9 +55,11 @@ export interface CreateTripInput {
   departureDate: string;
   departureTimeStart: string;
   departureTimeEnd: string;
+  /** 前端按设备时区计算的绝对时间戳（ms），云函数直接存储和比较。 */
+  departureEndTime: number;
   departureLocation: TripLocation;
   arrivalLocation: TripLocation;
-  ticketTime: string;
+  ticketTime?: string;
   maxPassengers: number;
   luggageSize: 'none' | 'small' | 'medium' | 'large' | 'xlarge';
   note?: string;
@@ -78,13 +86,20 @@ interface TripState {
 
   listTrips: (filter?: ListTripsFilter) => Promise<void>;
   loadMore: (filter?: ListTripsFilter) => Promise<void>;
-  createTrip: (input: CreateTripInput) => Promise<Trip>;
-  joinTrip: (tripId: string, luggageSize?: string) => Promise<void>;
-  leaveTrip: (tripId: string) => Promise<void>;
-  cancelTrip: (tripId: string) => Promise<void>;
-  completeTrip: (tripId: string) => Promise<void>;
   refreshTrips: (filter?: ListTripsFilter) => Promise<void>;
+  getTrip: (tripId: string) => Promise<Trip>;
+  createTrip: (input: CreateTripInput) => Promise<Trip>;
+  joinTrip: (tripId: string, luggageSize?: string) => Promise<Trip>;
+  leaveTrip: (tripId: string) => Promise<Trip>;
+  cancelTrip: (tripId: string) => Promise<void>;
+  completeTrip: (tripId: string) => Promise<string[]>;
   getMyTrips: () => Promise<void>;
+}
+
+function toastError(e: unknown, fallback: string): string {
+  const msg = e instanceof Error ? e.message : fallback;
+  Taro.showToast({ title: msg, icon: 'none' });
+  return msg;
 }
 
 export const useTripStore = create<TripState>((set, get) => ({
@@ -106,9 +121,7 @@ export const useTripStore = create<TripState>((set, get) => ({
       });
       set({ trips: res.trips || [], hasMore: res.hasMore ?? false, loading: false });
     } catch (e: unknown) {
-      const msg = e instanceof Error ? e.message : '加载失败';
-      set({ loading: false, error: msg });
-      Taro.showToast({ title: msg, icon: 'none' });
+      set({ loading: false, error: toastError(e, '加载失败') });
     }
   },
 
@@ -124,14 +137,25 @@ export const useTripStore = create<TripState>((set, get) => ({
       });
       set({ trips: [...trips, ...res.trips], hasMore: res.hasMore, loading: false });
     } catch (e: unknown) {
-      const msg = e instanceof Error ? e.message : '加载失败';
-      set({ loading: false, error: msg });
-      Taro.showToast({ title: msg, icon: 'none' });
+      set({ loading: false, error: toastError(e, '加载失败') });
     }
   },
 
+  refreshTrips: async (filter = {}) => {
+    set({ hasMore: true });
+    await get().listTrips(filter);
+  },
+
+  getTrip: async (tripId) => {
+    const res = await callCloudFunction<{ trip: Trip }>('getTrip', { tripId });
+    return res.trip;
+  },
+
   createTrip: async (input) => {
-    const res = await callCloudFunction<{ trip: Trip }>('createTrip', input as Record<string, unknown>);
+    const res = await callCloudFunction<{ trip: Trip }>(
+      'createTrip',
+      input as unknown as Record<string, unknown>,
+    );
     return res.trip;
   },
 
@@ -144,6 +168,7 @@ export const useTripStore = create<TripState>((set, get) => ({
         ? state.myJoinedTrips.map((t) => (t._id === tripId ? { ...t, ...updated } : t))
         : [...state.myJoinedTrips, updated],
     }));
+    return updated;
   },
 
   leaveTrip: async (tripId) => {
@@ -154,6 +179,7 @@ export const useTripStore = create<TripState>((set, get) => ({
       myJoinedTrips: state.myJoinedTrips.filter((t) => t._id !== tripId),
       myCompletedTrips: state.myCompletedTrips.filter((t) => t._id !== tripId),
     }));
+    return updated;
   },
 
   cancelTrip: async (tripId) => {
@@ -167,17 +193,14 @@ export const useTripStore = create<TripState>((set, get) => ({
   },
 
   completeTrip: async (tripId) => {
-    await callCloudFunction('completeTrip', { tripId });
+    const res = await callCloudFunction<{ completedBy?: string[] }>('completeTrip', { tripId });
+    const completedBy = res.completedBy || [];
     set((state) => {
-      // Already in completed — skip to avoid duplicate
-      if (state.myCompletedTrips.some((t) => t._id === tripId)) {
-        return {};
-      }
+      if (state.myCompletedTrips.some((t) => t._id === tripId)) return {};
       const findTrip = (list: Trip[]) => list.find((t) => t._id === tripId);
-      const completed = findTrip(state.myCreatedTrips) || findTrip(state.myJoinedTrips) || findTrip(state.trips);
-      const completedTrip = completed
-        ? { ...completed, completedBy: [...(completed.completedBy || []), useUserStore.getState().user?.openid || ''] }
-        : null;
+      const completed =
+        findTrip(state.myCreatedTrips) || findTrip(state.myJoinedTrips) || findTrip(state.trips);
+      const completedTrip = completed ? { ...completed, completedBy } : null;
       return {
         trips: state.trips.filter((t) => t._id !== tripId),
         myCreatedTrips: state.myCreatedTrips.filter((t) => t._id !== tripId),
@@ -187,11 +210,7 @@ export const useTripStore = create<TripState>((set, get) => ({
           : state.myCompletedTrips,
       };
     });
-  },
-
-  refreshTrips: async (filter = {}) => {
-    set({ hasMore: true });
-    await get().listTrips(filter);
+    return completedBy;
   },
 
   getMyTrips: async () => {
@@ -209,9 +228,7 @@ export const useTripStore = create<TripState>((set, get) => ({
           ...(res.joined || []).map((t) => t._id),
           ...(res.completed || []).map((t) => t._id),
         ]);
-        const localOnlyJoined = state.myJoinedTrips.filter(
-          (t) => !incomingIds.has(t._id),
-        );
+        const localOnlyJoined = state.myJoinedTrips.filter((t) => !incomingIds.has(t._id));
         return {
           myCreatedTrips: res.created || [],
           myJoinedTrips: [...(res.joined || []), ...localOnlyJoined],
@@ -219,8 +236,7 @@ export const useTripStore = create<TripState>((set, get) => ({
         };
       });
     } catch (e: unknown) {
-      const msg = e instanceof Error ? e.message : '获取我的行程失败';
-      Taro.showToast({ title: msg, icon: 'none' });
+      toastError(e, '获取我的行程失败');
     }
   },
 }));

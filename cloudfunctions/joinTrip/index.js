@@ -7,7 +7,9 @@ const _ = db.command;
 const VALID_LUGGAGE = ['none', 'small', 'medium', 'large', 'xlarge'];
 
 exports.main = async (event) => {
-  const { OPENID } = cloud.getWXContext();
+  // Web 端（CloudBase SDK 匿名登录）拿不到微信 OPENID，用前端传入的 _uid 兜底
+  const { OPENID: wxOpenid } = cloud.getWXContext();
+  const OPENID = wxOpenid || event._uid;
   if (!OPENID) return { code: 401, message: '请先登录' };
 
   const { tripId, luggageSize } = event;
@@ -49,6 +51,8 @@ exports.main = async (event) => {
       phone: user.phone,
       gender: user.gender,
       luggageSize,
+      studentId: user.studentId || '',
+      wechatId: user.wechatId || '',
       joinedAt: Date.now(),
     };
 

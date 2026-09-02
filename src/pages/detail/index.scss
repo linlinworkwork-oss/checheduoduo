@@ -116,6 +116,16 @@
   margin-bottom: 12px;
 }
 
+/* Note body — preserve line breaks from the create form */
+.det-note {
+  display: block;
+  font-size: 14px;
+  color: #636366;
+  line-height: 1.6;
+  white-space: pre-wrap;
+  word-break: break-all;
+}
+
 .det-card__creator {
   display: flex;
   align-items: center;

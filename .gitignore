@@ -9,3 +9,4 @@ dist/
 .swc/
 project.private.config.json
 *.zip
+web/

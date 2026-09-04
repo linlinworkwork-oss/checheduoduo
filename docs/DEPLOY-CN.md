@@ -57,26 +57,46 @@ sudo apt-get update && sudo apt-get install -y docker-compose-plugin
 
 ## ⑦ 一键部署
 
+**上传代码两种方式，任选其一：**
+
 ```bash
-# 在服务器上克隆代码（GitHub 仓库）
-git clone git@github.com:linlinworkwork-oss/checheduoduo.git   # 或 https 方式
-cd checheduoduo/deploy
+# 方式一（推荐）：本机打包上传 —— GitHub 在国内不稳定、仓库为私有时用它
+# ① 在你自己的电脑上（项目根目录，即含 server/ deploy/ 的目录）执行：
+tar --exclude=node_modules -czf pinche.tar.gz server deploy
+scp pinche.tar.gz root@服务器IP:~
+# ② 在服务器上执行：
+mkdir -p ~/checheduoduo && tar -xzf ~/pinche.tar.gz -C ~/checheduoduo
 
-# 配置域名
+# 方式二：GitHub 克隆（仓库需可访问；私有仓库要在服务器配置好密钥/令牌）
+git clone git@github.com:linlinworkwork-oss/checheduoduo.git
+```
+
+```bash
+# 进入部署目录
+cd ~/checheduoduo/deploy        # 方式一；方式二为 cd checheduoduo/deploy
+
+# 配置域名（现在就填上，备案通过后直接生效）
 cp .env.example .env
-vim .env        # 填 SITE_DOMAIN=你的域名（备案通过后填；先用 IP 测试可不填）
+vim .env        # 填 SITE_DOMAIN=你的域名（如 pinche.cn）
 
-# 启动（首次会构建镜像，几分钟）
-docker compose up -d --build
+# ⏳ 备案通过前：只启动 mongo + app，用 IP 验证（无需域名、无需备案）
+docker compose up -d --build mongo app
+docker compose ps        # pinche-mongo、pinche-app 都 running 即成功
+```
+
+**备案通过前临时验证**：先到腾讯云轻量控制台 → 防火墙 → 添加规则放行 **TCP 3000**，
+然后浏览器访问 `http://服务器IP:3000` —— 能看到页面即部署成功。
+
+## ⑧ 备案通过后上线
+
+```bash
+# ① 启动 caddy（自动 HTTPS，会为域名自动申请证书）
+cd ~/checheduoduo/deploy
+docker compose up -d
 docker compose ps        # 三个服务都 running 即成功
 ```
 
-**备案通过前临时验证**：直接访问 `http://服务器IP:3000`（App 端口已暴露）
-—— 能看到页面即部署成功。
-
-## ⑧ 域名解析
-
-备案通过后，到腾讯云 DNSPod（https://console.cloud.tencent.com/cns）：
+**② 域名解析**：到腾讯云 DNSPod（https://console.cloud.tencent.com/cns）：
 - 添加记录：主机记录 `@`、记录类型 **A**、记录值 = **服务器公网 IP**
 - 再添加一条 `www` → 同样 A 记录
 - 等待解析生效（几分钟 ~ 几小时）
@@ -90,6 +110,9 @@ Caddy 检测到域名请求会自动申请 Let's Encrypt 证书（无需手动�
 
 > 若 https 没自动生效，检查：域名是否解析到本机、80/443 是否放行
 > （腾讯云轻量防火墙 → 防火墙规则 → 放行 80/443）。
+
+> 📌 备案通过后 30 日内，记得做**公安联网备案**（免费）：
+> 全国公安机关互联网站安全管理服务平台 https://beian.mps.gov.cn —— 按提示填 ICP 备案号即可。
 
 ---
 
@@ -122,8 +145,9 @@ docker cp pinche-mongo:/dump ./backup-$(date +%F)
 
 ## 常见问题
 
-- **备案期间想让大家先用？** 备案未通过前域名不能解析到国内服务器对外提供网站服务。
-  可以先发给少数人用 `http://IP:3000`，或等备案完再正式发链接。
+- **备案期间想让大家先用？** 备案未通过前域名不能解析到国内服务器对外提供网站服务，
+  且此时只启动了 mongo+app（无 caddy）。放行 3000 端口后可先发给少数人用 `http://IP:3000`，
+  或等备案完再正式发链接。
 - **换了服务器 IP？** 改 DNSPod 的 A 记录即可，代码不用动。
 - **MongoDB 数据备份**见上文"日常维护"。
 - **以后想换国内其他厂商**（阿里云等）：代码与部署方式完全通用，仅备案需在新厂商重做。

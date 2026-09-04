@@ -1,11 +1,14 @@
 # 国内服务器一键部署（docker compose）
-# 用法：把本文件与 server/ 放到服务器同一目录后：
-#   docker compose up -d --build
+# 用法：仓库根目录下同时存在 server/（源码 + web/ 产物）与 deploy/（本目录）：
+#   cd deploy && docker compose up -d --build
+# 备案通过前可先只启 mongo+app，用 http://IP:3000 验证（无需域名）：
+#   docker compose up -d --build mongo app
+# 备案通过后再补启 caddy：docker compose up -d
 # 组成：
 #   - mongo : MongoDB（数据卷持久化）
 #   - app   : 拼车后端（托管 API + 前端静态页，同域 /api）
 #   - caddy : 反向代理 + 自动 HTTPS（免费证书，自动续期）
-# 前置：域名已备案并解析 A 记录到本服务器 IP，80/443 端口放行。
+# 前置：caddy 需要域名已备案并解析 A 记录到本服务器 IP，80/443 端口放行。
 
 services:
   mongo:
@@ -19,7 +22,7 @@ services:
       - "27017"
 
   app:
-    build: ./server
+    build: ../server
     container_name: pinche-app
     restart: unless-stopped
     depends_on:
@@ -30,6 +33,9 @@ services:
       - PORT=3000
     expose:
       - "3000"
+    # 备案前用 http://IP:3000 验证需要映射到公网；正式上线后想更安全可删除本段
+    ports:
+      - "3000:3000"
     # 健康检查（供 caddy / compose 判断就绪）
     healthcheck:
       test: ["CMD", "wget", "-qO-", "http://127.0.0.1:3000/api/health"]

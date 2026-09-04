@@ -1,0 +1,60 @@
+# 国内服务器一键部署（docker compose）
+# 用法：把本文件与 server/ 放到服务器同一目录后：
+#   docker compose up -d --build
+# 组成：
+#   - mongo : MongoDB（数据卷持久化）
+#   - app   : 拼车后端（托管 API + 前端静态页，同域 /api）
+#   - caddy : 反向代理 + 自动 HTTPS（免费证书，自动续期）
+# 前置：域名已备案并解析 A 记录到本服务器 IP，80/443 端口放行。
+
+services:
+  mongo:
+    image: mongo:7
+    container_name: pinche-mongo
+    restart: unless-stopped
+    volumes:
+      - mongo-data:/data/db
+    # 校园规模，无需对外暴露端口；仅内网 app 访问
+    expose:
+      - "27017"
+
+  app:
+    build: ./server
+    container_name: pinche-app
+    restart: unless-stopped
+    depends_on:
+      - mongo
+    environment:
+      - MONGODB_URI=mongodb://mongo:27017/pinche
+      - SERVE_WEB=true
+      - PORT=3000
+    expose:
+      - "3000"
+    # 健康检查（供 caddy / compose 判断就绪）
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1:3000/api/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+
+  caddy:
+    image: caddy:2
+    container_name: pinche-caddy
+    restart: unless-stopped
+    depends_on:
+      - app
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy-data:/data
+      - caddy-config:/config
+    environment:
+      # 你的备案域名，多个用空格分隔（如 "a.com www.a.com"）
+      - SITE_DOMAIN=${SITE_DOMAIN:?请在 .env 中设置 SITE_DOMAIN=你的域名}
+
+volumes:
+  mongo-data:
+  caddy-data:
+  caddy-config:

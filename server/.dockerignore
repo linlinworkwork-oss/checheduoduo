@@ -1,0 +1,6 @@
+# Docker 构建排除项（node_modules 由镜像内 npm install 生成）
+node_modules/
+.env
+data/
+*.log
+npm-debug.log*

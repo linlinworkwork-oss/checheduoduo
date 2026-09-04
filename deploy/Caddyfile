@@ -1,0 +1,14 @@
+# Caddy 自动 HTTPS 反代
+# SITE_DOMAIN 由 docker compose 从 .env 注入
+{$SITE_DOMAIN} {
+	# 前端静态 + API 全在 app:3000（同域）
+	reverse_proxy app:3000
+
+	# 可选：压缩
+	encode gzip
+
+	# 可选：日志
+	log {
+		output stdout
+	}
+}

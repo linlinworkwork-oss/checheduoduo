@@ -47,6 +47,21 @@ export default function PhonePopup() {
     setSkipped(true);
   };
 
+  const handleInput = (e: any) => {
+    const v = String(e.detail.value || '').replace(/\D/g, '').slice(0, 11);
+    setPhone(v);
+    // H5：输入满 11 位自动收起键盘，避免数字键盘挡住「确认」按钮
+    if (v.length === 11 && process.env.TARO_ENV === 'h5') {
+      setTimeout(() => {
+        try {
+          (document.activeElement as any)?.blur?.();
+        } catch {
+          /* ignore */
+        }
+      }, 60);
+    }
+  };
+
   return (
     <View className="phone-popup">
       <View className="phone-popup__mask" />
@@ -61,7 +76,7 @@ export default function PhonePopup() {
           placeholder="输入手机号"
           placeholderStyle="color:#c7c7cc"
           value={phone}
-          onInput={(e: any) => setPhone(e.detail.value)}
+          onInput={handleInput}
           onConfirm={save}
         />
         <View

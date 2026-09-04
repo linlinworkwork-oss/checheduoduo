@@ -1,0 +1,137 @@
+.time-picker {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  /* 必须高于页面底部导航栏(tabbar)，否则底部网格会被挡住点不到 */
+  z-index: 12000;
+  display: flex;
+  align-items: flex-end;
+
+  &__mask {
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(0, 0, 0, 0.45);
+  }
+
+  &__sheet {
+    position: relative;
+    width: 100%;
+    max-height: 84vh;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+    background: #fff;
+    border-radius: 20px 20px 0 0;
+    padding: 12px 14px 0;
+    padding-bottom: calc(24px + env(safe-area-inset-bottom, 0px));
+  }
+
+  &__head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 4px 2px 10px;
+  }
+
+  &__head-title {
+    font-size: 16px;
+    font-weight: 600;
+    color: #1a1a1c;
+  }
+
+  &__head-btn {
+    font-size: 15px;
+    color: #8e8e93;
+    padding: 4px 8px;
+  }
+
+  &__head-ok {
+    color: var(--color-primary);
+    font-weight: 600;
+  }
+
+  &__head-ok--off {
+    color: #c7c7cc;
+  }
+
+  &__preview {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 8px 0 14px;
+    border-bottom: 1px solid #f0f0f2;
+    margin-bottom: 12px;
+  }
+
+  &__preview-txt {
+    font-size: 42px;
+    font-weight: 700;
+    color: #1a1a1c;
+    font-variant-numeric: tabular-nums;
+  }
+
+  &__preview-txt--empty {
+    color: #d1d1d6;
+  }
+
+  &__preview-hint {
+    font-size: 12px;
+    color: #8e8e93;
+    margin-top: 4px;
+  }
+
+  &__group {
+    margin-bottom: 14px;
+  }
+
+  &__group-label {
+    font-size: 12px;
+    color: #8e8e93;
+    margin-bottom: 6px;
+    display: block;
+  }
+
+  &__grid {
+    display: flex;
+    flex-wrap: wrap;
+  }
+
+  /* 每行 6 个（24 小时 = 4 行；12 个分钟档 = 2 行，两列网格对齐） */
+  &__cell {
+    box-sizing: border-box;
+    width: 16.666%;
+    padding: 3px;
+  }
+
+  &__chip {
+    box-sizing: border-box;
+    width: 100%;
+    height: 40px;
+    border-radius: 8px;
+    background: #f5f5f7;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: #1a1a1c;
+    font-size: 16px;
+    font-variant-numeric: tabular-nums;
+
+    &:active {
+      opacity: 0.7;
+    }
+  }
+
+  &__chip--on {
+    background: var(--color-primary);
+    color: #fff;
+    font-weight: 600;
+  }
+
+  &__safe {
+    height: 12px;
+  }
+}

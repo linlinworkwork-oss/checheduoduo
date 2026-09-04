@@ -6,6 +6,7 @@ import { useUserStore } from '../../stores/userStore';
 import { MAX_PASSENGERS_OPTIONS, LUGGAGE_OPTIONS, LOCATION_OPTIONS } from '../../lib/constants';
 import { todayStr } from '../../lib/date';
 import { confirmIfDepartingSoon } from '../../lib/trip';
+import TimePicker from '../../components/ui/time-picker';
 import './index.scss';
 
 interface FormData {
@@ -61,6 +62,38 @@ export default function Create() {
       return next;
     });
     setErrors((p) => ({ ...p, [f]: '' }));
+  };
+
+  // ---- 时间选择（点选式底部弹层，替代难用的滚轮） ----
+  const [timeTarget, setTimeTarget] = useState<'start' | 'end' | 'ticket' | null>(null);
+  const timeTitle =
+    timeTarget === 'start' ? '最早出发时间' : timeTarget === 'end' ? '最晚出发时间' : '票面时间';
+  const timeValue =
+    timeTarget === 'start'
+      ? form.departureTimeStart
+      : timeTarget === 'end'
+        ? form.departureTimeEnd
+        : timeTarget === 'ticket'
+          ? form.ticketTime
+          : '';
+
+  const addMin = (t: string, m: number) => {
+    const [h, mi] = t.split(':').map(Number);
+    const d = new Date(2000, 0, 1, h, mi + m);
+    return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
+  };
+
+  const confirmTime = (v: string) => {
+    if (timeTarget === 'start') {
+      set('departureTimeStart', v);
+      // 选了「最早」但还没填「最晚」→ 自动补 +30 分钟，少一步操作
+      if (!form.departureTimeEnd) set('departureTimeEnd', addMin(v, 30));
+    } else if (timeTarget === 'end') {
+      set('departureTimeEnd', v);
+    } else if (timeTarget === 'ticket') {
+      set('ticketTime', v);
+    }
+    setTimeTarget(null);
   };
 
   const makeLocHandler = (type: 'departure' | 'arrival') => (e: any) => {
@@ -253,22 +286,24 @@ export default function Create() {
           <Text className="sheet__row-icon">🕐</Text>
           <View className="sheet__field sheet__field--half">
             <Text className="sheet__label">最早出发</Text>
-            <Picker mode="time" value={form.departureTimeStart} onChange={(e: any) => set('departureTimeStart', e.detail.value)}>
-              <View className={`sheet__val ${errors.departureTimeStart ? 'sheet__val--err' : ''} ${form.departureTimeStart ? '' : 'sheet__val--empty'}`}>
-                <Text>{form.departureTimeStart || '-- : --'}</Text>
-              </View>
-            </Picker>
+            <View
+              className={`sheet__val ${errors.departureTimeStart ? 'sheet__val--err' : ''} ${form.departureTimeStart ? '' : 'sheet__val--empty'}`}
+              onClick={() => setTimeTarget('start')}
+            >
+              <Text>{form.departureTimeStart || '-- : --'}</Text>
+            </View>
           </View>
           <View className="sheet__sep">
             <Text>—</Text>
           </View>
           <View className="sheet__field sheet__field--half">
             <Text className="sheet__label">最晚出发</Text>
-            <Picker mode="time" value={form.departureTimeEnd} onChange={(e: any) => set('departureTimeEnd', e.detail.value)}>
-              <View className={`sheet__val ${errors.departureTimeEnd ? 'sheet__val--err' : ''} ${form.departureTimeEnd ? '' : 'sheet__val--empty'}`}>
-                <Text>{form.departureTimeEnd || '-- : --'}</Text>
-              </View>
-            </Picker>
+            <View
+              className={`sheet__val ${errors.departureTimeEnd ? 'sheet__val--err' : ''} ${form.departureTimeEnd ? '' : 'sheet__val--empty'}`}
+              onClick={() => setTimeTarget('end')}
+            >
+              <Text>{form.departureTimeEnd || '-- : --'}</Text>
+            </View>
           </View>
         </View>
         {errors.departureTimeEnd && <Text className="sheet__err">{errors.departureTimeEnd}</Text>}
@@ -287,11 +322,12 @@ export default function Create() {
           </View>
           <View className="sheet__field sheet__field--half">
             <Text className="sheet__label">票面时间（选填）</Text>
-            <Picker mode="time" value={form.ticketTime} onChange={(e: any) => set('ticketTime', e.detail.value)}>
-              <View className={`sheet__val ${errors.ticketTime ? 'sheet__val--err' : ''} ${form.ticketTime ? '' : 'sheet__val--empty'}`}>
-                <Text>{form.ticketTime || '-- : --'}</Text>
-              </View>
-            </Picker>
+            <View
+              className={`sheet__val ${errors.ticketTime ? 'sheet__val--err' : ''} ${form.ticketTime ? '' : 'sheet__val--empty'}`}
+              onClick={() => setTimeTarget('ticket')}
+            >
+              <Text>{form.ticketTime || '-- : --'}</Text>
+            </View>
           </View>
         </View>
       </View>
@@ -367,6 +403,14 @@ export default function Create() {
         </View>
         <Text className="submit-hint">发布后同学们即可看到你的行程</Text>
       </View>
+
+      <TimePicker
+        open={!!timeTarget}
+        title={timeTitle}
+        value={timeValue}
+        onClose={() => setTimeTarget(null)}
+        onConfirm={confirmTime}
+      />
 
       <View style={{ height: 60 }} />
     </ScrollView>

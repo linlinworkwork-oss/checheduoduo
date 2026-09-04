@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { View, Text, Input } from '@tarojs/components';
 import Taro from '@tarojs/taro';
 import { useUserStore } from '../../stores/userStore';
+import Portal from './portal';
 import './phone-popup.scss';
 
 /** 「跳过」持久化：跳过后不再每次打开页面都全屏弹窗拦截浏览 */
@@ -65,7 +66,8 @@ export default function PhonePopup() {
   };
 
   return (
-    <View className={`phone-popup ${kbOpen ? 'phone-popup--kb' : ''}`}>
+    <Portal>
+      <View className={`phone-popup ${kbOpen ? 'phone-popup--kb' : ''}`}>
       <View className="phone-popup__mask" />
       <View className="phone-popup__card">
         <Text className="phone-popup__icon">📱</Text>
@@ -94,6 +96,7 @@ export default function PhonePopup() {
           <Text className="phone-popup__skip-text">跳过，稍后填写</Text>
         </View>
       </View>
-    </View>
+      </View>
+    </Portal>
   );
 }

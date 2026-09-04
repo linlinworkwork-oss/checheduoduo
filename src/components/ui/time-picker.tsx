@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { View, Text } from '@tarojs/components';
+import Portal from './portal';
 import './time-picker.scss';
 
 const HOURS = Array.from({ length: 24 }, (_, i) => String(i).padStart(2, '0'));
@@ -45,8 +46,9 @@ export default function TimePicker({ open, value, title, onClose, onConfirm }: P
   };
 
   return (
-    <View className="time-picker">
-      <View className="time-picker__mask" onClick={onClose} />
+    <Portal>
+      <View className="time-picker">
+        <View className="time-picker__mask" onClick={onClose} />
       <View className="time-picker__sheet">
         <View className="time-picker__head">
           <Text className="time-picker__head-btn" onClick={onClose}>
@@ -102,6 +104,7 @@ export default function TimePicker({ open, value, title, onClose, onConfirm }: P
 
         <View className="time-picker__safe" />
       </View>
-    </View>
+      </View>
+    </Portal>
   );
 }

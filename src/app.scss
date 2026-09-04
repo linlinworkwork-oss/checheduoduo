@@ -4,9 +4,11 @@
    px in SCSS → Taro converts 1px = 2rpx
 
    注意：小程序 WXSS 不支持 `:root` 选择器，
-   设计令牌必须定义在 `page` 上才能全局生效。
+   设计令牌必须定义在 `page` 上才能全局生效；
+   而 H5 网页里没有 `<page>` 元素，必须同时定义在 `:root` 上，
+   否则所有 var(--xxx) 颜色在网页版全部失效（按钮透明隐形）。
    ============================================ */
-page {
+page, :root {
   /* Colors — Warm Campus */
   --color-primary: #3b4cca;
   --color-primary-hover: #2f3ea8;

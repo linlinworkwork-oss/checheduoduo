@@ -11,6 +11,8 @@ export default function PhonePopup() {
   const { user, loading, updateProfile } = useUserStore();
   const [phone, setPhone] = useState('');
   const [saving, setSaving] = useState(false);
+  // 键盘弹起时弹窗上移，避免「确认」按钮被手机键盘盖住
+  const [kbOpen, setKbOpen] = useState(false);
   const [skipped, setSkipped] = useState(() => {
     try {
       return !!Taro.getStorageSync(SKIP_KEY);
@@ -63,7 +65,7 @@ export default function PhonePopup() {
   };
 
   return (
-    <View className="phone-popup">
+    <View className={`phone-popup ${kbOpen ? 'phone-popup--kb' : ''}`}>
       <View className="phone-popup__mask" />
       <View className="phone-popup__card">
         <Text className="phone-popup__icon">📱</Text>
@@ -77,6 +79,8 @@ export default function PhonePopup() {
           placeholderStyle="color:#c7c7cc"
           value={phone}
           onInput={handleInput}
+          onFocus={() => setKbOpen(true)}
+          onBlur={() => setKbOpen(false)}
           onConfirm={save}
         />
         <View

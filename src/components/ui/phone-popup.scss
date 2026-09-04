@@ -99,3 +99,12 @@
     font-size: 13px;
   }
 }
+
+/* 键盘弹起模式：卡片贴向上方，保证输入框+「确认」都在键盘之上 */
+.phone-popup--kb {
+  align-items: flex-start;
+
+  .phone-popup__card {
+    margin-top: 7vh;
+  }
+}
